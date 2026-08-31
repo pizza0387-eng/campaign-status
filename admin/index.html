@@ -327,11 +327,25 @@ async function delClient(id, name){
   if (!confirm('[' + name + '] 을 삭제할까요?\n광고주 링크도 다음 수집 때부터 갱신이 멈춥니다.')) return;
   await sb.from('xhs_clients').delete().eq('id', id); loadAll();
 }
+/* 광고주 링크 복사. ⭐실패했을 때 조용히 아무 일도 안 하면 안 된다 —
+   복사됐다고 믿고 빈 클립보드를 붙여넣게 된다. 권한이 막히면 옛 방식으로 한 번 더 시도하고,
+   그것도 안 되면 주소를 띄워 손으로 복사할 수 있게 한다. */
 function copy(text, btn){
-  navigator.clipboard.writeText(text).then(() => {
+  const done = () => {
     const o = btn.textContent; btn.textContent = '복사됨'; btn.disabled = true;
     setTimeout(() => { btn.textContent = o; btn.disabled = false; }, 1600);
-  });
+  };
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;top:0;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove();
+    if (ok) done(); else prompt('아래 주소를 복사해 광고주에게 보내세요', text);
+  };
+  if (!navigator.clipboard) return fallback();
+  navigator.clipboard.writeText(text).then(done, fallback);
 }
 
 async function loadAll(){
