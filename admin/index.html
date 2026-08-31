@@ -4,84 +4,208 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
 <title>샤오홍슈 체험단 관리</title>
-<!-- 이 파일은 셸이다. deploy_pages.py 가 {{...}} 를 채워 GitHub Pages 에 올린다.
-     데이터는 전부 로그인해야만 보인다 (publishable 키는 공개용으로 설계된 키). -->
+
+<!-- 나·직원용 관리화면. deploy_pages.py 가 {{...}} 를 채워 GitHub Pages 에 올리는 셸이다.
+     데이터는 전부 로그인해야만 보인다 (publishable 키는 공개용으로 설계된 키).
+     ⛔업체명·토큰·노션주소를 이 파일에 넣지 말 것 — 공개 레포다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root{ --bg:#14161a; --card:#1c1f24; --line:#2c3037; --tx:#e8eaed; --dim:#9aa0a6;
-         --red:#ff2442; --ok:#34d399; --warn:#fbbf24; }
-  *{box-sizing:border-box}
-  body{margin:0;padding:20px 14px 60px;background:var(--bg);color:var(--tx);
-    font:15px/1.6 -apple-system,"Segoe UI","Malgun Gothic",sans-serif}
-  .wrap{max-width:860px;margin:0 auto}
-  h1{font-size:20px;margin:0 0 2px} h1 b{color:var(--red)}
-  .sub{color:var(--dim);font-size:13px;margin-bottom:16px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
-    padding:16px;margin-bottom:14px}
-  input,button{font:inherit;border-radius:8px;border:1px solid var(--line)}
-  input{width:100%;padding:9px 11px;background:#111317;color:var(--tx);margin:4px 0 10px}
-  input:focus{outline:1px solid var(--red)}
-  button{padding:9px 16px;background:var(--red);color:#fff;border:none;cursor:pointer;font-weight:600}
-  button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line)}
-  button:disabled{opacity:.5;cursor:default}
-  label{font-size:12px;color:var(--dim)}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .cl{border-top:1px solid var(--line);padding:13px 0}
-  .cl:first-child{border-top:none;padding-top:2px}
-  .nm{font-size:16px;font-weight:700}
-  .st{font-size:13px;color:var(--dim);margin:2px 0 8px}
-  .st b{color:var(--tx)}
-  .badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11px;font-weight:600}
-  .b-ok{background:rgba(52,211,153,.15);color:var(--ok)}
-  .b-warn{background:rgba(251,191,36,.15);color:var(--warn)}
-  .b-off{background:rgba(154,160,166,.15);color:var(--dim)}
-  .lnk{font-size:12px;color:var(--dim);word-break:break-all}
-  .btn-s{padding:6px 12px;font-size:13px}
-  /* 계약 건수 인라인 입력 — 카드 안에서 바로 고친다 (자주 쓰는 값) */
-  .cnt{margin:0 0 8px;gap:7px}
-  .cnt input{width:78px;margin:0;padding:5px 8px;text-align:center}
-  .cnt label{white-space:nowrap}
-  .msg{color:var(--warn);font-size:13px;min-height:18px;white-space:pre-line}
-  details{margin-top:6px} summary{cursor:pointer;color:var(--dim);font-size:13px}
-  .hide{display:none}
+/* 광고주 뷰어와 같은 토큰 체계. 여기는 하루 종일 들여다보는 작업 화면이라
+   대비를 조금 더 세우고 밀도를 높였다. */
+:root{
+  --ground:#FBF9F9; --surface:#FFFFFF; --raise:#F5F1F2; --sink:#F0EBEC;
+  --ink:#191214;    --ink-2:#5C5054;  --ink-3:#8A7E81;
+  --line:#EBE3E4;   --line-2:#DCD2D4;
+  --brand:#F0263C;
+  --ok:#0D7A5F;     --ok-bg:#E4F1EC;
+  --warn:#B07314;   --warn-bg:#F7EEDD;
+  --idle:#8A7E81;   --idle-bg:#EFEAEB;
+  --shadow:0 1px 2px rgba(25,18,20,.04), 0 8px 24px -14px rgba(25,18,20,.12);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ground:#131011; --surface:#1C1618; --raise:#241D20; --sink:#100D0E;
+    --ink:#F2ECED;   --ink-2:#B4A8AB;  --ink-3:#8D8083;
+    --line:#2C2326;  --line-2:#3A2F32;
+    --brand:#FF4257;
+    --ok:#3FC79E;    --ok-bg:#123329;
+    --warn:#E3A63C;  --warn-bg:#33280F;
+    --idle:#8D8083;  --idle-bg:#272022;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#131011; --surface:#1C1618; --raise:#241D20; --sink:#100D0E;
+  --ink:#F2ECED;   --ink-2:#B4A8AB;  --ink-3:#8D8083;
+  --line:#2C2326;  --line-2:#3A2F32; --brand:#FF4257;
+  --ok:#3FC79E;    --ok-bg:#123329;  --warn:#E3A63C; --warn-bg:#33280F;
+  --idle:#8D8083;  --idle-bg:#272022; --shadow:none;
+}
+:root[data-theme="light"]{
+  --ground:#FBF9F9; --surface:#FFFFFF; --raise:#F5F1F2; --sink:#F0EBEC;
+  --ink:#191214;   --ink-2:#5C5054;  --ink-3:#8A7E81;
+  --line:#EBE3E4;  --line-2:#DCD2D4; --brand:#F0263C;
+  --ok:#0D7A5F;    --ok-bg:#E4F1EC;  --warn:#B07314; --warn-bg:#F7EEDD;
+  --idle:#8A7E81;  --idle-bg:#EFEAEB;
+  --shadow:0 1px 2px rgba(25,18,20,.04), 0 8px 24px -14px rgba(25,18,20,.12);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+body{
+  margin:0; padding:0; background:var(--ground); color:var(--ink);
+  font:400 15px/1.6 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",
+       "Malgun Gothic","맑은 고딕",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  font-variant-numeric:tabular-nums}
+.wrap{max-width:940px; margin:0 auto; padding:26px 16px 72px;
+  display:flex; flex-direction:column; gap:14px}
+
+.head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap}
+.head h1{margin:0; font-size:21px; font-weight:800; letter-spacing:-.035em}
+.head h1 span{color:var(--brand)}
+.head .sub{font-size:12.5px; color:var(--ink-3)}
+
+.card{background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  box-shadow:var(--shadow); padding:18px}
+.card.flat{padding:0; overflow:hidden}
+
+label{display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:5px}
+label .hint{font-weight:400; color:var(--ink-3)}
+input{font:inherit; width:100%; padding:9px 11px; border-radius:9px;
+  border:1px solid var(--line-2); background:var(--sink); color:var(--ink)}
+input::placeholder{color:var(--ink-3)}
+input:focus-visible{outline:2px solid var(--brand); outline-offset:1px; border-color:transparent}
+.field{margin-bottom:12px}
+.fields2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+
+button{font:inherit; font-weight:700; letter-spacing:-.01em; cursor:pointer;
+  padding:9px 15px; border-radius:9px; border:1px solid transparent;
+  background:var(--brand); color:#fff}
+button:hover{filter:brightness(1.07)}
+button.ghost{background:transparent; color:var(--ink-2); border-color:var(--line-2)}
+button.ghost:hover{filter:none; color:var(--ink); border-color:var(--ink-3)}
+button.sm{padding:6px 11px; font-size:13px; border-radius:8px}
+button:disabled{opacity:.5; cursor:default}
+button:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+
+summary{cursor:pointer; font-size:14px; font-weight:700; color:var(--ink-2); list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"＋"; margin-right:7px; color:var(--brand); font-weight:800}
+details[open] summary::before{content:"−"}
+summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border-radius:4px}
+.reg-body{margin-top:14px; padding-top:14px; border-top:1px solid var(--line)}
+
+.msg{font-size:12.5px; color:var(--warn); min-height:17px; white-space:pre-line}
+.msg.ok{color:var(--ok)}
+.hint-line{font-size:12px; color:var(--ink-3); margin-top:8px; line-height:1.6}
+
+/* ── 업체 목록 ── */
+.client{padding:17px 18px; border-top:1px solid var(--line)}
+.client:first-child{border-top:none}
+.c-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+.c-name{font-size:16.5px; font-weight:750; letter-spacing:-.02em;
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.pill{font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; letter-spacing:-.01em}
+.p-ok{background:var(--ok-bg); color:var(--ok)}
+.p-warn{background:var(--warn-bg); color:var(--warn)}
+.p-off{background:var(--idle-bg); color:var(--idle)}
+
+/* 한 줄에 진행이 다 읽히게 — 숫자는 크게, 이름표는 작게 */
+.stats{display:flex; flex-wrap:wrap; gap:4px 18px; margin:11px 0 3px}
+.stat{display:flex; align-items:baseline; gap:5px; font-size:12.5px; color:var(--ink-3)}
+.stat b{font-size:16px; font-weight:750; color:var(--ink); letter-spacing:-.02em}
+.stat.acc b{color:var(--brand)}
+.when{font-size:12px; color:var(--ink-3); margin-top:6px}
+.when.bad{color:var(--warn)}
+
+/* 계약 입력줄 — 자주 고치는 값이라 상세를 펼치지 않고 카드에서 바로 */
+.deal{margin-top:12px; padding:11px 12px; background:var(--raise); border-radius:11px;
+  display:flex; flex-wrap:wrap; align-items:center; gap:9px 14px}
+.deal .grp{display:flex; align-items:center; gap:7px}
+.deal label{margin:0; white-space:nowrap; font-size:12px}
+.deal input{width:66px; padding:6px 8px; text-align:center; background:var(--surface)}
+.deal .sep{width:1px; align-self:stretch; background:var(--line-2)}
+.deal .out{font-size:12.5px; color:var(--ink-2)}
+.deal .out b{color:var(--ink); font-weight:700}
+.deal .out.gap b{color:var(--warn)}
+
+.real{font-size:12px; color:var(--ink-3); margin-top:8px}
+.real b{color:var(--ink-2); font-weight:700}
+.more{margin-top:11px}
+.more summary{font-size:12.5px; font-weight:600}
+.more summary::before{content:"⋯"; }
+.more[open] summary::before{content:"⋯"; }
+.more-body{margin-top:9px; font-size:12.5px; color:var(--ink-3); line-height:1.7;
+  word-break:break-all; display:flex; flex-direction:column; gap:9px}
+.more-body a{color:var(--ink-2)}
+.empty{padding:34px 18px; text-align:center; color:var(--ink-3); font-size:14px}
+
+@media (max-width:600px){
+  .wrap{padding:20px 12px 60px}
+  .fields2{grid-template-columns:1fr}
+  .c-head{align-items:flex-start; flex-direction:column}
+  .deal{gap:9px 11px}
+  .deal .sep{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1><b>샤오홍슈</b> 체험단 관리</h1>
-  <div class="sub">업체 등록 · 진행 현황 · 광고주 전용링크 — 수집은 1시간마다 자동</div>
+  <header class="head">
+    <h1><span>샤오홍슈</span> 체험단 관리</h1>
+    <div class="sub">수집은 1시간마다 자동 · 광고주는 전용 링크만 봅니다</div>
+  </header>
 
   <!-- 로그인 -->
   <div class="card" id="login-card">
-    <label>이메일</label><input id="em" type="email" autocomplete="username">
-    <label>비밀번호</label><input id="pw" type="password" autocomplete="current-password">
-    <div class="row"><button onclick="login()">로그인</button><span class="msg" id="login-msg"></span></div>
+    <div class="field"><label for="em">이메일</label>
+      <input id="em" type="email" autocomplete="username"></div>
+    <div class="field"><label for="pw">비밀번호</label>
+      <input id="pw" type="password" autocomplete="current-password"></div>
+    <div class="row"><button onclick="login()">로그인</button>
+      <span class="msg" id="login-msg"></span></div>
   </div>
 
-  <div id="app" class="hide">
-    <!-- 업체 등록 -->
-    <div class="card">
-      <details id="reg-box"><summary>➕ 새 업체 등록</summary>
-        <div style="margin-top:10px">
-          <label>업체명 (광고주에게 보일 이름)</label><input id="f-name" placeholder="예: 23플래터">
-          <label>노션 페이지 주소</label><input id="f-url" placeholder="https://....notion.site/....">
-          <label>계약 건수 (광고주 화면에 "계약 N건 중 …" 으로 표시 · 나중에 입력해도 됩니다)</label>
-          <input id="f-count" type="number" min="1" max="999" placeholder="예: 15">
-          <label>광고주 담당자 휴대폰 (알림톡용 · 선택)</label><input id="f-phone" placeholder="010...">
+  <div id="app" hidden>
+    <div class="card" style="margin-bottom:14px">
+      <details id="reg-box"><summary>새 업체 등록</summary>
+        <div class="reg-body">
+          <div class="field"><label for="f-name">업체명 <span class="hint">— 광고주 화면에 그대로 보입니다</span></label>
+            <input id="f-name" placeholder="예: 23플래터"></div>
+          <div class="field"><label for="f-url">노션 페이지 주소 <span class="hint">— 외주사 페이지 주소창을 복사</span></label>
+            <input id="f-url" placeholder="https://....notion.site/...."></div>
+          <div class="fields2">
+            <div class="field"><label for="f-count">계약 건수 <span class="hint">— 총 몇 명</span></label>
+              <input id="f-count" type="number" min="1" max="999" placeholder="예: 15"></div>
+            <div class="field"><label for="f-phone">광고주 담당자 휴대폰 <span class="hint">— 알림톡용, 선택</span></label>
+              <input id="f-phone" placeholder="010..."></div>
+          </div>
+          <div class="fields2">
+            <div class="field"><label for="f-f1k">계약 구성 · 1천 이상 <span class="hint">(명)</span></label>
+              <input id="f-f1k" type="number" min="0" max="999" placeholder="예: 10"></div>
+            <div class="field"><label for="f-f10k">계약 구성 · 1만 이상 <span class="hint">(명)</span></label>
+              <input id="f-f10k" type="number" min="0" max="999" placeholder="예: 5"></div>
+          </div>
           <div class="row"><button onclick="addClient()">등록</button>
             <span class="msg" id="reg-msg"></span></div>
-          <div class="lnk">등록하면 다음 자동 수집(최대 1시간) 때 광고주 화면이 만들어집니다.
-            바로 만들려면 사무실 PC에서 지금확인.bat 을 실행하세요.</div>
+          <div class="hint-line">등록하면 다음 자동 수집(최대 1시간) 때 광고주 화면이 만들어집니다.
+            바로 만들려면 사무실 PC에서 <b>지금확인.bat</b> 을 실행하세요.<br>
+            계약 건수·구성은 나중에 목록에서 고쳐도 됩니다.</div>
         </div>
       </details>
     </div>
 
-    <!-- 업체 목록 -->
-    <div class="card"><div id="list">불러오는 중…</div></div>
-    <div class="row">
-      <button class="ghost btn-s" onclick="loadAll()">↻ 새로고침</button>
-      <button class="ghost btn-s" onclick="logout()">로그아웃</button>
+    <div class="card flat"><div id="list"><div class="empty">불러오는 중…</div></div></div>
+
+    <div class="row" style="margin-top:14px">
+      <button class="ghost sm" onclick="loadAll()">새로고침</button>
+      <button class="ghost sm" onclick="logout()">로그아웃</button>
       <span class="msg" id="top-msg"></span>
     </div>
   </div>
@@ -94,21 +218,29 @@ const PAGES_BASE = 'https://status.tesseramarketing.kr';
 const sb = supabase.createClient(SB_URL, SB_KEY);
 const $ = id => document.getElementById(id);
 
+/* 광고주 링크 — 토큰은 해시(#) 뒤에 둔다. 해시는 서버로 전송되지 않아 접근 로그에도 안 남는다. */
 function pageUrl(t){ return PAGES_BASE + '/c/#t=' + t; }
+function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+/* 양의 정수만 유효. 파이썬 contract_num 과 같은 규칙 */
+function cnum(v){ const n = parseInt(String(v ?? '').trim(), 10); return n > 0 ? n : null; }
+
+const TIERS = [['f1k','1천 이상'], ['f10k','1만 이상']];
 
 async function boot(){
   const { data:{ session } } = await sb.auth.getSession();
-  if (session){ $('login-card').classList.add('hide'); $('app').classList.remove('hide'); loadAll(); }
+  if (session){ $('login-card').hidden = true; $('app').hidden = false; loadAll(); }
 }
 async function login(){
   $('login-msg').textContent = '확인 중…';
-  const { error } = await sb.auth.signInWithPassword({ email: $('em').value.trim(), password: $('pw').value });
+  const { error } = await sb.auth.signInWithPassword(
+    { email: $('em').value.trim(), password: $('pw').value });
   if (error){ $('login-msg').textContent = '로그인 실패: ' + error.message; return; }
   $('login-msg').textContent = ''; boot();
 }
 async function logout(){ await sb.auth.signOut(); location.reload(); }
 
-// 파이썬 make_slug 와 같은 규칙 — ascii 소문자·숫자·하이픈만
+/* 파이썬 make_slug 와 같은 규칙 — ascii 소문자·숫자·하이픈만 */
 function makeSlug(name, taken){
   let s = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'client';
   let base = s, n = 2;
@@ -119,65 +251,81 @@ function makeToken(){
   const a = new Uint8Array(9); crypto.getRandomValues(a);
   return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
-
-// 계약 건수 입력값 → 양의 정수 또는 null. 파이썬 contract_num 과 같은 규칙.
-function cnum(v){ const n = parseInt(String(v ?? '').trim(), 10); return n > 0 ? n : null; }
+/* 컬럼이 아직 없을 때(스키마 SQL 미실행) 사람이 읽을 수 있는 안내로 바꾼다 */
+function schemaHint(msg){
+  return /contract_count|contract_tiers/.test(msg || '')
+    ? '계약 칸이 아직 DB에 없습니다 — supabase_추가_계약건수.sql 을 SQL Editor 에서 실행하세요.'
+    : null;
+}
 
 async function addClient(){
-  const name = $('f-name').value.trim(), url = $('f-url').value.trim(), phone = $('f-phone').value.trim();
-  const m = $('reg-msg');
+  const name = $('f-name').value.trim(), url = $('f-url').value.trim();
+  const m = $('reg-msg'); m.className = 'msg';
   if (!name || !url){ m.textContent = '업체명과 노션 주소는 필수입니다.'; return; }
   if (!url.includes('notion')){ m.textContent = '노션 주소가 아닌 것 같습니다.'; return; }
   m.textContent = '등록 중…';
+
   const { data: rows } = await sb.from('xhs_clients').select('slug');
-  const slug = makeSlug(name, new Set((rows||[]).map(r=>r.slug)));
-  const row = { name, notion_url: url, phone, slug, token: makeToken(), enabled: true };
+  const row = { name, notion_url: url, phone: $('f-phone').value.trim(),
+    slug: makeSlug(name, new Set((rows||[]).map(r => r.slug))),
+    token: makeToken(), enabled: true };
   const cc = cnum($('f-count').value);
   if (cc) row.contract_count = cc;
+  const tiers = {};
+  TIERS.forEach(([k]) => { const v = cnum($('f-' + k).value); if (v) tiers[k] = v; });
+  if (Object.keys(tiers).length) row.contract_tiers = tiers;
+
   const { error } = await sb.from('xhs_clients').insert(row);
   if (error){
     m.textContent = error.code === '23505' ? '이미 등록된 노션 주소입니다.'
-      : /contract_count/.test(error.message)
-        ? '계약 건수 칸이 아직 DB에 없습니다 — supabase_스키마.sql 을 SQL Editor 에서 다시 실행하세요.'
-        : '실패: ' + error.message;
+      : (schemaHint(error.message) || '실패: ' + error.message);
     return;
   }
   m.textContent = '';
-  $('f-name').value = $('f-url').value = $('f-phone').value = $('f-count').value = '';
+  ['f-name','f-url','f-phone','f-count','f-f1k','f-f10k'].forEach(id => $(id).value = '');
   $('reg-box').open = false; loadAll();
 }
 
-// 계약 건수 저장 — 목록을 다시 그리지 않는다(입력 중 포커스가 날아가면 못 쓴다).
-// 광고주 화면에는 다음 열람 때 바로 반영된다(RPC 가 이 컬럼을 직접 읽는다).
-async function saveCount(id, el){
-  const msg = document.getElementById('cnt-msg-' + id);
-  const n = cnum(el.value);
-  msg.textContent = '저장 중…';
-  const { error } = await sb.from('xhs_clients').update({ contract_count: n }).eq('id', id);
-  if (error){
-    msg.textContent = /contract_count/.test(error.message)
-      ? '⚠ DB에 계약 건수 칸이 없습니다 (supabase_스키마.sql 재실행)' : '⚠ ' + error.message;
-    return;
+/* 계약 값 저장 — 목록을 다시 그리지 않는다. 입력 중 다시 그리면 포커스가 날아가 못 쓴다.
+   광고주 화면에는 다음 열람 때 바로 반영된다 (RPC 가 이 칸들을 직접 읽는다). */
+async function saveDeal(id, el){
+  const msg = $('deal-msg-' + id);
+  const box = el.closest('.deal');
+  const count = cnum(box.querySelector('.in-count').value);
+  const tiers = {};
+  TIERS.forEach(([k]) => { const v = cnum(box.querySelector('.in-' + k).value); if (v) tiers[k] = v; });
+
+  msg.className = 'msg'; msg.textContent = '저장 중…';
+  const { error } = await sb.from('xhs_clients')
+    .update({ contract_count: count, contract_tiers: Object.keys(tiers).length ? tiers : null })
+    .eq('id', id);
+  if (error){ msg.textContent = schemaHint(error.message) || error.message; return; }
+
+  el.value = cnum(el.value) ?? '';
+  msg.className = 'msg ok';
+  msg.textContent = count ? '저장됨 · 계약 ' + count + '건' : '저장됨 · 계약 표시 안 함';
+  setTimeout(() => { msg.textContent = ''; msg.className = 'msg'; }, 4000);
+
+  const out = $('deal-out-' + id);
+  if (out){
+    const tot = out.dataset.total;
+    out.innerHTML = (count && tot !== '')
+      ? '확보 <b>' + tot + '</b>명 · <span class="' +
+        (Math.max(0, count - Number(tot)) ? 'gap' : '') + '">남은 자리 <b>' +
+        Math.max(0, count - Number(tot)) + '</b>건</span>'
+      : '';
   }
-  el.value = n ?? '';
-  msg.textContent = n ? '✅ 계약 ' + n + '건 저장됨' : '✅ 비움 (광고주 화면에 계약 표시 안 함)';
-  setTimeout(()=>{ msg.textContent = ''; }, 4000);
-  const box = document.getElementById('cnt-info-' + id);
-  if (box) box.textContent = box.dataset.tot === '' ? ''
-    : n ? ' · 남은 자리 ' + Math.max(0, n - Number(box.dataset.tot)) + '건' : '';
 }
 
-async function setEnabled(id, v){
-  await sb.from('xhs_clients').update({ enabled: v }).eq('id', id); loadAll();
-}
+async function setEnabled(id, v){ await sb.from('xhs_clients').update({ enabled: v }).eq('id', id); loadAll(); }
 async function delClient(id, name){
   if (!confirm('[' + name + '] 을 삭제할까요?\n광고주 링크도 다음 수집 때부터 갱신이 멈춥니다.')) return;
   await sb.from('xhs_clients').delete().eq('id', id); loadAll();
 }
 function copy(text, btn){
-  navigator.clipboard.writeText(text).then(()=>{
-    const o = btn.textContent; btn.textContent = '✅ 복사됨';
-    setTimeout(()=>{ btn.textContent = o; }, 1500);
+  navigator.clipboard.writeText(text).then(() => {
+    const o = btn.textContent; btn.textContent = '복사됨'; btn.disabled = true;
+    setTimeout(() => { btn.textContent = o; btn.disabled = false; }, 1600);
   });
 }
 
@@ -186,56 +334,84 @@ async function loadAll(){
     sb.from('xhs_clients').select('*').order('id'),
     sb.from('xhs_state').select('*')
   ]);
-  if (e1){ $('list').textContent = '불러오기 실패: ' + e1.message; return; }
-  const st = {}; (sts||[]).forEach(s => st[s.slug] = s);
-  if (!cs || !cs.length){ $('list').innerHTML = '<div class="st">등록된 업체가 없습니다 — 위에서 등록하세요.</div>'; return; }
-  const html = [];   // 반복문 안 innerHTML += 금지 (CRM 렌더 규칙)
+  if (e1){ $('list').innerHTML = '<div class="empty">불러오기 실패: ' + esc(e1.message) + '</div>'; return; }
+  const st = {}; (sts || []).forEach(s => st[s.slug] = s);
+  if (!cs || !cs.length){
+    $('list').innerHTML = '<div class="empty">등록된 업체가 없습니다 — 위에서 등록하세요.</div>'; return;
+  }
+
+  const html = [];                       // 반복문 안 innerHTML += 금지 (CRM 렌더 규칙)
   for (const c of cs){
-    const s = st[c.slug], sum = s && s.summary || {};
-    const badge = !c.enabled ? '<span class="badge b-off">중지됨</span>'
-      : !s ? '<span class="badge b-warn">수집 대기</span>'
-      : s.ok ? '<span class="badge b-ok">정상</span>'
-      : '<span class="badge b-warn">수집 실패</span>';
-    const fw = sum.f_known ? ` · 팔로워 1천+ ${sum.f1k??0} / 1만+ ${sum.f10k??0}` : '';
-    const stat = s ? `진행 <b>${sum.total??'-'}</b>명 · 리뷰 <b>${sum.uploaded??'-'}</b> · 대기 ${sum.visited??0} · 예정 ${sum.scheduled??'-'} · 섭외 ${sum.recruited??'-'} · 취소 ${sum.cancelled??'-'}${fw}
-      <br>마지막 확인 ${s.fetched_at||'—'} · 마지막 변경 ${s.last_change||'—'}${s.ok?'':'<br>⚠ '+(s.reason||'')}`
-      : '아직 수집 전입니다 (다음 자동 수집 때 채워집니다)';
-    // 계약 건수는 자주 고치는 값이라 상세를 펼치지 않고 카드에서 바로 입력한다.
+    const s = st[c.slug], sum = (s && s.summary) || {};
+    const pill = !c.enabled ? '<span class="pill p-off">중지됨</span>'
+      : !s ? '<span class="pill p-warn">수집 대기</span>'
+      : s.ok ? '<span class="pill p-ok">정상</span>'
+      : '<span class="pill p-warn">수집 실패</span>';
+
+    const stats = s ? `<div class="stats">
+        <span class="stat acc"><b>${sum.uploaded ?? 0}</b>리뷰 업로드</span>
+        <span class="stat"><b>${sum.total ?? 0}</b>확보 인원</span>
+        <span class="stat"><b>${sum.visited ?? 0}</b>리뷰 대기</span>
+        <span class="stat"><b>${sum.scheduled ?? 0}</b>방문 예정</span>
+        <span class="stat"><b>${sum.recruited ?? 0}</b>일정 미정</span>
+        <span class="stat"><b>${sum.cancelled ?? 0}</b>취소</span>
+      </div>
+      <div class="when${s.ok ? '' : ' bad'}">확인 ${esc(s.fetched_at || '—')} · 변경 ${esc(s.last_change || '—')}${
+        s.ok ? '' : '<br>⚠ ' + esc(s.reason || '수집 실패')}</div>`
+      : '<div class="when">아직 수집 전입니다 (다음 자동 수집 때 채워집니다)</div>';
+
     const tot = (s && sum.total != null) ? String(sum.total) : '';
-    const cc = c.contract_count;
-    const gap = (cc && tot !== '') ? ` · 남은 자리 ${Math.max(0, cc - Number(tot))}건` : '';
+    const cc = c.contract_count, t = c.contract_tiers || {};
+    const gap = cc && tot !== '' ? Math.max(0, cc - Number(tot)) : null;
+    const out = (cc && tot !== '')
+      ? `확보 <b>${tot}</b>명 · <span class="${gap ? 'gap' : ''}">남은 자리 <b>${gap}</b>건</span>` : '';
+    // 실제 섭외 팔로워 구성 — 계약값과 다를 수 있어서 여기(내부)에만 띄운다.
+    const real = sum.f_known
+      ? `<div class="real">실제 섭외 · ${TIERS.map(([k, l]) =>
+          `${l} <b>${sum[k] ?? 0}</b>명`).join(' · ')}
+         <span style="color:var(--ink-3)">— 광고주 화면에는 위 계약값만 나갑니다</span></div>` : '';
     const link = pageUrl(c.token);
-    html.push(`<div class="cl">
-      <div class="row" style="justify-content:space-between">
-        <span class="nm">${esc(c.name)} ${badge}</span>
-        <span class="row">
-          <button class="btn-s" onclick="copy('${link}', this)">📋 광고주 링크 복사</button>
-          <a class="ghost btn-s" style="text-decoration:none;padding:6px 12px;border-radius:8px" href="${link}" target="_blank">열기</a>
-        </span>
-      </div>
-      <div class="st">${stat}</div>
-      <div class="row cnt">
-        <label for="cnt-${c.id}">계약 건수</label>
-        <input id="cnt-${c.id}" type="number" min="0" max="999" value="${cc ?? ''}"
-               placeholder="미입력" onchange="saveCount(${c.id}, this)">
-        <span class="lnk" id="cnt-info-${c.id}" data-tot="${tot}">${gap}</span>
-        <span class="msg" id="cnt-msg-${c.id}"></span>
-      </div>
-      <details><summary>상세 · 설정</summary>
-        <div class="lnk" style="margin:6px 0">노션: <a href="${esc(c.notion_url)}" target="_blank" style="color:var(--dim)">${esc(c.notion_url)}</a><br>
-        담당자: ${esc(c.phone||'—')} · 등록 ${(c.created_at||'').slice(0,10)}</div>
+
+    html.push(`<div class="client">
+      <div class="c-head">
+        <div class="c-name">${esc(c.name)} ${pill}</div>
         <div class="row">
-          ${c.enabled
-            ? `<button class="ghost btn-s" onclick="setEnabled(${c.id}, false)">⏸ 감시 중지</button>`
-            : `<button class="btn-s" onclick="setEnabled(${c.id}, true)">▶ 감시 재개</button>`}
-          <button class="ghost btn-s" onclick="delClient(${c.id}, '${esc(c.name)}')">🗑 삭제</button>
+          <button class="sm" onclick="copy('${link}', this)">광고주 링크 복사</button>
+          <button class="ghost sm" onclick="window.open('${link}','_blank')">열기</button>
+        </div>
+      </div>
+      ${stats}
+      <div class="deal">
+        <div class="grp"><label for="d-count-${c.id}">계약 건수</label>
+          <input class="in-count mono" id="d-count-${c.id}" type="number" min="0" max="999"
+                 value="${cc ?? ''}" placeholder="—" onchange="saveDeal(${c.id}, this)"></div>
+        <div class="sep"></div>
+        <div class="grp"><label for="d-f1k-${c.id}">1천 이상</label>
+          <input class="in-f1k mono" id="d-f1k-${c.id}" type="number" min="0" max="999"
+                 value="${t.f1k ?? ''}" placeholder="—" onchange="saveDeal(${c.id}, this)"></div>
+        <div class="grp"><label for="d-f10k-${c.id}">1만 이상</label>
+          <input class="in-f10k mono" id="d-f10k-${c.id}" type="number" min="0" max="999"
+                 value="${t.f10k ?? ''}" placeholder="—" onchange="saveDeal(${c.id}, this)"></div>
+        <div class="out" id="deal-out-${c.id}" data-total="${tot}">${out}</div>
+        <span class="msg" id="deal-msg-${c.id}"></span>
+      </div>
+      ${real}
+      <details class="more"><summary>노션 주소 · 감시 설정</summary>
+        <div class="more-body">
+          <div>노션 <a href="${esc(c.notion_url)}" target="_blank" rel="noopener">${esc(c.notion_url)}</a></div>
+          <div>담당자 ${esc(c.phone || '—')} · 등록 ${esc((c.created_at || '').slice(0, 10))}</div>
+          <div class="row">
+            ${c.enabled
+              ? `<button class="ghost sm" onclick="setEnabled(${c.id}, false)">감시 중지</button>`
+              : `<button class="sm" onclick="setEnabled(${c.id}, true)">감시 재개</button>`}
+            <button class="ghost sm" onclick="delClient(${c.id}, '${esc(c.name)}')">삭제</button>
+          </div>
         </div>
       </details>
     </div>`);
   }
   $('list').innerHTML = html.join('');
 }
-function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 boot();
 </script>
 </body>
