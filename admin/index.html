@@ -38,6 +38,10 @@
   .b-off{background:rgba(154,160,166,.15);color:var(--dim)}
   .lnk{font-size:12px;color:var(--dim);word-break:break-all}
   .btn-s{padding:6px 12px;font-size:13px}
+  /* 계약 건수 인라인 입력 — 카드 안에서 바로 고친다 (자주 쓰는 값) */
+  .cnt{margin:0 0 8px;gap:7px}
+  .cnt input{width:78px;margin:0;padding:5px 8px;text-align:center}
+  .cnt label{white-space:nowrap}
   .msg{color:var(--warn);font-size:13px;min-height:18px;white-space:pre-line}
   details{margin-top:6px} summary{cursor:pointer;color:var(--dim);font-size:13px}
   .hide{display:none}
@@ -62,6 +66,8 @@
         <div style="margin-top:10px">
           <label>업체명 (광고주에게 보일 이름)</label><input id="f-name" placeholder="예: 23플래터">
           <label>노션 페이지 주소</label><input id="f-url" placeholder="https://....notion.site/....">
+          <label>계약 건수 (광고주 화면에 "계약 N건 중 …" 으로 표시 · 나중에 입력해도 됩니다)</label>
+          <input id="f-count" type="number" min="1" max="999" placeholder="예: 15">
           <label>광고주 담당자 휴대폰 (알림톡용 · 선택)</label><input id="f-phone" placeholder="010...">
           <div class="row"><button onclick="addClient()">등록</button>
             <span class="msg" id="reg-msg"></span></div>
@@ -114,6 +120,9 @@ function makeToken(){
   return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 
+// 계약 건수 입력값 → 양의 정수 또는 null. 파이썬 contract_num 과 같은 규칙.
+function cnum(v){ const n = parseInt(String(v ?? '').trim(), 10); return n > 0 ? n : null; }
+
 async function addClient(){
   const name = $('f-name').value.trim(), url = $('f-url').value.trim(), phone = $('f-phone').value.trim();
   const m = $('reg-msg');
@@ -122,14 +131,40 @@ async function addClient(){
   m.textContent = '등록 중…';
   const { data: rows } = await sb.from('xhs_clients').select('slug');
   const slug = makeSlug(name, new Set((rows||[]).map(r=>r.slug)));
-  const { error } = await sb.from('xhs_clients').insert(
-    { name, notion_url: url, phone, slug, token: makeToken(), enabled: true });
+  const row = { name, notion_url: url, phone, slug, token: makeToken(), enabled: true };
+  const cc = cnum($('f-count').value);
+  if (cc) row.contract_count = cc;
+  const { error } = await sb.from('xhs_clients').insert(row);
   if (error){
-    m.textContent = error.code === '23505' ? '이미 등록된 노션 주소입니다.' : '실패: ' + error.message;
+    m.textContent = error.code === '23505' ? '이미 등록된 노션 주소입니다.'
+      : /contract_count/.test(error.message)
+        ? '계약 건수 칸이 아직 DB에 없습니다 — supabase_스키마.sql 을 SQL Editor 에서 다시 실행하세요.'
+        : '실패: ' + error.message;
     return;
   }
-  m.textContent = ''; $('f-name').value = $('f-url').value = $('f-phone').value = '';
+  m.textContent = '';
+  $('f-name').value = $('f-url').value = $('f-phone').value = $('f-count').value = '';
   $('reg-box').open = false; loadAll();
+}
+
+// 계약 건수 저장 — 목록을 다시 그리지 않는다(입력 중 포커스가 날아가면 못 쓴다).
+// 광고주 화면에는 다음 열람 때 바로 반영된다(RPC 가 이 컬럼을 직접 읽는다).
+async function saveCount(id, el){
+  const msg = document.getElementById('cnt-msg-' + id);
+  const n = cnum(el.value);
+  msg.textContent = '저장 중…';
+  const { error } = await sb.from('xhs_clients').update({ contract_count: n }).eq('id', id);
+  if (error){
+    msg.textContent = /contract_count/.test(error.message)
+      ? '⚠ DB에 계약 건수 칸이 없습니다 (supabase_스키마.sql 재실행)' : '⚠ ' + error.message;
+    return;
+  }
+  el.value = n ?? '';
+  msg.textContent = n ? '✅ 계약 ' + n + '건 저장됨' : '✅ 비움 (광고주 화면에 계약 표시 안 함)';
+  setTimeout(()=>{ msg.textContent = ''; }, 4000);
+  const box = document.getElementById('cnt-info-' + id);
+  if (box) box.textContent = box.dataset.tot === '' ? ''
+    : n ? ' · 남은 자리 ' + Math.max(0, n - Number(box.dataset.tot)) + '건' : '';
 }
 
 async function setEnabled(id, v){
@@ -161,9 +196,14 @@ async function loadAll(){
       : !s ? '<span class="badge b-warn">수집 대기</span>'
       : s.ok ? '<span class="badge b-ok">정상</span>'
       : '<span class="badge b-warn">수집 실패</span>';
-    const stat = s ? `진행 <b>${sum.total??'-'}</b>명 · 리뷰 <b>${sum.uploaded??'-'}</b> · 대기 ${sum.visited??0} · 예정 ${sum.scheduled??'-'} · 섭외 ${sum.recruited??'-'} · 취소 ${sum.cancelled??'-'}
+    const fw = sum.f_known ? ` · 팔로워 1천+ ${sum.f1k??0} / 1만+ ${sum.f10k??0}` : '';
+    const stat = s ? `진행 <b>${sum.total??'-'}</b>명 · 리뷰 <b>${sum.uploaded??'-'}</b> · 대기 ${sum.visited??0} · 예정 ${sum.scheduled??'-'} · 섭외 ${sum.recruited??'-'} · 취소 ${sum.cancelled??'-'}${fw}
       <br>마지막 확인 ${s.fetched_at||'—'} · 마지막 변경 ${s.last_change||'—'}${s.ok?'':'<br>⚠ '+(s.reason||'')}`
       : '아직 수집 전입니다 (다음 자동 수집 때 채워집니다)';
+    // 계약 건수는 자주 고치는 값이라 상세를 펼치지 않고 카드에서 바로 입력한다.
+    const tot = (s && sum.total != null) ? String(sum.total) : '';
+    const cc = c.contract_count;
+    const gap = (cc && tot !== '') ? ` · 남은 자리 ${Math.max(0, cc - Number(tot))}건` : '';
     const link = pageUrl(c.token);
     html.push(`<div class="cl">
       <div class="row" style="justify-content:space-between">
@@ -174,6 +214,13 @@ async function loadAll(){
         </span>
       </div>
       <div class="st">${stat}</div>
+      <div class="row cnt">
+        <label for="cnt-${c.id}">계약 건수</label>
+        <input id="cnt-${c.id}" type="number" min="0" max="999" value="${cc ?? ''}"
+               placeholder="미입력" onchange="saveCount(${c.id}, this)">
+        <span class="lnk" id="cnt-info-${c.id}" data-tot="${tot}">${gap}</span>
+        <span class="msg" id="cnt-msg-${c.id}"></span>
+      </div>
       <details><summary>상세 · 설정</summary>
         <div class="lnk" style="margin:6px 0">노션: <a href="${esc(c.notion_url)}" target="_blank" style="color:var(--dim)">${esc(c.notion_url)}</a><br>
         담당자: ${esc(c.phone||'—')} · 등록 ${(c.created_at||'').slice(0,10)}</div>

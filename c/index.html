@@ -23,6 +23,29 @@
   h1{font-size:21px;margin:0 0 4px;letter-spacing:-.4px}
   h1 b{color:var(--red)}
   .sub{color:var(--dim);font-size:13px;margin-bottom:18px}
+  /* 계약 대비 진행 (계약 건수를 관리화면에 넣은 업체만) + 팔로워 구성.
+     ⚠ template.html 과 같은 모양을 유지할 것 — 한쪽만 고치면 미리보기가 갈라진다. */
+  .prog{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:15px 16px;margin-bottom:10px}
+  .prog .top{display:flex;flex-wrap:wrap;gap:5px 12px;align-items:baseline;
+    justify-content:space-between;margin-bottom:11px}
+  .prog .big{font-size:17px;font-weight:700;letter-spacing:-.4px}
+  .prog .big em{font-style:normal;color:var(--red);font-size:22px}
+  .prog .leg{font-size:12.5px;color:var(--dim);white-space:nowrap}
+  .prog .leg u{text-decoration:none;margin-left:11px}
+  .prog .leg u:first-child{margin-left:0}
+  .prog .leg i{font-style:normal;display:inline-block;width:8px;height:8px;
+    border-radius:2px;margin-right:4px}
+  .bar{display:flex;height:12px;border-radius:7px;overflow:hidden;
+    background:rgba(128,128,128,.16)}
+  .bar span{display:block;height:100%}
+  .sw-g,.bar .g{background:var(--ok)}
+  .sw-a,.bar .a{background:var(--wait)}
+  .sw-e{background:rgba(128,128,128,.3)}
+  .fw{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:11px 16px;margin-bottom:10px;font-size:13.5px;color:var(--dim)}
+  .fw b{color:var(--tx);font-weight:700;margin-left:12px;white-space:nowrap}
+
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
     gap:9px;margin-bottom:18px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
@@ -101,6 +124,34 @@ function td(label, html, empty){
        + (empty ? '—' : html) + '</td>';
 }
 
+// 팔로워 구간 — 누적('1천 이상'이 '1만 이상'을 포함). xhs_watch.FOLLOWER_TIERS 와 같은 순서.
+const TIERS = [['f1k','1천 이상'], ['f10k','1만 이상']];
+
+// 계약 대비 진행. xhs_watch.contract_view + progress_html 과 같은 계산·같은 모양이다.
+// 분모는 계약 건수 — 취소가 나면 남은 자리가 도로 늘어난다.
+function progressHtml(contract, s){
+  const c = parseInt(contract, 10);
+  if (!(c > 0)) return '';                       // 계약 건수 미입력 = 블록 자체를 안 낸다
+  const done = s.uploaded || 0, live = s.total || 0;
+  const ongoing = Math.max(0, live - done), remain = Math.max(0, c - live);
+  const dp = Math.min(100, Math.round(done * 100 / c));
+  const op = Math.min(100 - dp, Math.round(ongoing * 100 / c));
+  return '<div class="prog"><div class="top">'
+    + '<div class="big">계약 <em>' + c + '</em>건 중 리뷰 <em>' + done + '</em>건 완료</div>'
+    + '<div class="leg"><u><i class="sw-g"></i>업로드 ' + done + '</u>'
+    + '<u><i class="sw-a"></i>진행 중 ' + ongoing + '</u>'
+    + '<u><i class="sw-e"></i>남은 자리 ' + remain + '</u></div></div>'
+    + '<div class="bar"><span class="g" style="width:' + dp + '%"></span>'
+    + '<span class="a" style="width:' + op + '%"></span></div></div>';
+}
+
+function followersHtml(s){
+  if (!s.f_known) return '';                     // 팔로워를 하나도 못 읽으면 안 낸다
+  return '<div class="fw">인플루언서 팔로워 구성'
+    + TIERS.map(([k, label]) => '<b>' + label + ' ' + (s[k] || 0) + '명</b>').join('')
+    + '</div>';
+}
+
 function render(d){
   const s = d.summary || {};
   const rows = d.rows || [];
@@ -127,6 +178,8 @@ function render(d){
   document.getElementById('app').innerHTML = `
     <h1><b>${esc(d.name)}</b> 샤오홍슈(小红书) 체험단 현황</h1>
     <div class="sub">인플루언서 방문 일정과 업로드된 리뷰를 실시간으로 확인하실 수 있습니다.</div>
+    ${progressHtml(d.contract ?? s.contract, s)}
+    ${followersHtml(s)}
     <div class="cards">
       <div class="card hl"><div class="n">${s.total ?? 0}</div><div class="l">진행 인원</div></div>
       <div class="card"><div class="n">${s.uploaded ?? 0}</div><div class="l">리뷰 업로드</div></div>
