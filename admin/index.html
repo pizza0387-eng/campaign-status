@@ -61,12 +61,12 @@
       <details id="reg-box"><summary>➕ 새 업체 등록</summary>
         <div style="margin-top:10px">
           <label>업체명 (광고주에게 보일 이름)</label><input id="f-name" placeholder="예: 23플래터">
-          <label>외주사 노션 주소</label><input id="f-url" placeholder="https://....notion.site/....">
+          <label>노션 페이지 주소</label><input id="f-url" placeholder="https://....notion.site/....">
           <label>광고주 담당자 휴대폰 (알림톡용 · 선택)</label><input id="f-phone" placeholder="010...">
           <div class="row"><button onclick="addClient()">등록</button>
             <span class="msg" id="reg-msg"></span></div>
-          <div class="lnk">등록하면 다음 자동 수집(최대 1시간) 때 첫 화면이 만들어집니다.
-            바로 만들려면 PC에서 지금확인.bat 을 실행하세요.</div>
+          <div class="lnk">등록하면 다음 자동 수집(최대 1시간) 때 광고주 화면이 만들어집니다.
+            바로 만들려면 사무실 PC에서 지금확인.bat 을 실행하세요.</div>
         </div>
       </details>
     </div>
@@ -161,7 +161,7 @@ async function loadAll(){
       : !s ? '<span class="badge b-warn">수집 대기</span>'
       : s.ok ? '<span class="badge b-ok">정상</span>'
       : '<span class="badge b-warn">수집 실패</span>';
-    const stat = s ? `진행 <b>${sum.total??'-'}</b>명 · 리뷰 <b>${sum.uploaded??'-'}</b> · 예정 ${sum.scheduled??'-'} · 섭외 ${sum.recruited??'-'} · 취소 ${sum.cancelled??'-'}
+    const stat = s ? `진행 <b>${sum.total??'-'}</b>명 · 리뷰 <b>${sum.uploaded??'-'}</b> · 대기 ${sum.visited??0} · 예정 ${sum.scheduled??'-'} · 섭외 ${sum.recruited??'-'} · 취소 ${sum.cancelled??'-'}
       <br>마지막 확인 ${s.fetched_at||'—'} · 마지막 변경 ${s.last_change||'—'}${s.ok?'':'<br>⚠ '+(s.reason||'')}`
       : '아직 수집 전입니다 (다음 자동 수집 때 채워집니다)';
     const link = pageUrl(c.token);
