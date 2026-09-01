@@ -131,13 +131,21 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
 .when{font-size:12px; color:var(--ink-3); margin-top:6px}
 .when.bad{color:var(--warn)}
 
-/* 계약 입력줄 — 자주 고치는 값이라 상세를 펼치지 않고 카드에서 바로 */
+/* 회차 표 — 같은 업체의 1회차·2회차를 한 자리에서 관리한다.
+   ⭐회차 경계는 사람이 정한다 (자동 판정은 취소·보충 때문에 반드시 틀린다). */
 .deal{margin-top:12px; padding:11px 12px; background:var(--raise); border-radius:11px;
-  display:flex; flex-wrap:wrap; align-items:center; gap:9px 14px}
-.deal .grp{display:flex; align-items:center; gap:7px}
-.deal label{margin:0; white-space:nowrap; font-size:12px}
-.deal input{width:66px; padding:6px 8px; text-align:center; background:var(--surface)}
-.deal .sep{width:1px; align-self:stretch; background:var(--line-2)}
+  display:flex; flex-direction:column; gap:7px}
+.rhead,.rrow{display:grid; gap:7px;
+  grid-template-columns:58px minmax(120px,1fr) 74px 62px 132px 58px 58px;
+  align-items:center}
+.rhead{font-size:11px; color:var(--ink-3); font-weight:600; padding:0 2px}
+.rrow .rn{font-size:12px; font-weight:700; color:var(--ink-2); white-space:nowrap}
+.deal input{padding:6px 8px; background:var(--surface); width:100%}
+.deal .in-start,.deal .in-count,.deal .in-f1k,.deal .in-f10k{text-align:center}
+.deal .in-url{font-size:12px}
+.rfoot{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin-top:3px}
+.rfoot .tip{font-size:11.5px; color:var(--ink-3); line-height:1.55}
+.rfoot .tip b{color:var(--ink-2)}
 .deal .out{font-size:12.5px; color:var(--ink-2)}
 .deal .out b{color:var(--ink); font-weight:700}
 .deal .out.gap b{color:var(--warn)}
@@ -154,8 +162,11 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
   .wrap{padding:20px 12px 60px}
   .fields2{grid-template-columns:1fr}
   .c-head{align-items:flex-start; flex-direction:column}
-  .deal{gap:9px 11px}
-  .deal .sep{display:none}
+  /* 좁은 화면에선 회차 표를 세로로 편다 — 7칸이 가로로 들어가지 않는다 */
+  .rhead{display:none}
+  .rrow{grid-template-columns:1fr 1fr; gap:6px; padding:9px; background:var(--surface);
+    border-radius:9px}
+  .rrow .rn,.rrow .in-url{grid-column:1/-1}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -258,9 +269,24 @@ function makeToken(){
 }
 /* 컬럼이 아직 없을 때(스키마 SQL 미실행) 사람이 읽을 수 있는 안내로 바꾼다 */
 function schemaHint(msg){
+  if (/rounds/.test(msg || ''))
+    return '회차 칸이 아직 DB에 없습니다 — supabase_추가_회차.sql 을 SQL Editor 에서 실행하세요.';
   return /contract_count|contract_tiers/.test(msg || '')
     ? '계약 칸이 아직 DB에 없습니다 — supabase_추가_계약건수.sql 을 SQL Editor 에서 실행하세요.'
     : null;
+}
+
+/* 업체의 회차 목록. 비어 있으면 옛 원장(notion_url·contract_count·contract_tiers)으로
+   1회차를 합성한다 — 수집기 xhs_watch.client_rounds 와 **같은 규칙**이어야 한다. */
+function roundsOf(c){
+  const rs = Array.isArray(c.rounds) ? c.rounds.filter(r => r && typeof r === 'object') : [];
+  if (rs.length)
+    return rs.map((r, i) => ({ n: cnum(r.n) || i + 1, notion_url: r.notion_url || c.notion_url || '',
+                               start_no: cnum(r.start_no) || 1, contract: cnum(r.contract),
+                               tiers: r.tiers || {}, end: r.end || '' }))
+             .sort((a, b) => a.n - b.n);
+  return [{ n: 1, notion_url: c.notion_url || '', start_no: 1,
+            contract: cnum(c.contract_count), tiers: c.contract_tiers || {}, end: '' }];
 }
 
 async function addClient(){
@@ -291,35 +317,78 @@ async function addClient(){
   $('reg-box').open = false; loadAll();
 }
 
-/* 계약 값 저장 — 목록을 다시 그리지 않는다. 입력 중 다시 그리면 포커스가 날아가 못 쓴다.
-   광고주 화면에는 다음 열람 때 바로 반영된다 (RPC 가 이 칸들을 직접 읽는다). */
-async function saveDeal(id, el){
+/* 회차 저장 — 목록을 다시 그리지 않는다. 입력 중 다시 그리면 포커스가 날아가 못 쓴다.
+   광고주 화면에는 다음 열람 때 바로 반영된다 (RPC 가 rounds 를 직접 읽는다).
+
+   ⭐`contract_count`·`contract_tiers` 에 **현재(마지막) 회차**를 거울로 함께 쓴다.
+     RPC 갱신 SQL 을 아직 안 돌린 화면도 최소한 지금 회차 숫자는 맞게 보인다. */
+async function saveRounds(id, el){
   const msg = $('deal-msg-' + id);
-  const box = el.closest('.deal');
-  const count = cnum(box.querySelector('.in-count').value);
-  const tiers = {};
-  TIERS.forEach(([k]) => { const v = cnum(box.querySelector('.in-' + k).value); if (v) tiers[k] = v; });
+  const box = $('rounds-' + id);
+  const rows = [...box.querySelectorAll('.rrow')].map((r, i) => {
+    const g = s => r.querySelector('.in-' + s);
+    const tiers = {};
+    TIERS.forEach(([k]) => { const v = cnum(g(k).value); if (v) tiers[k] = v; });
+    return { n: cnum(g('n').value) || i + 1,
+             notion_url: g('url').value.trim(),
+             start_no: cnum(g('start').value) || 1,
+             contract: cnum(g('count').value),
+             tiers, end: g('end').value.trim() };
+  }).filter(r => r.notion_url);
+  rows.sort((a, b) => a.n - b.n);
 
+  const cur = rows[rows.length - 1] || {};
   msg.className = 'msg'; msg.textContent = '저장 중…';
-  const { error } = await sb.from('xhs_clients')
-    .update({ contract_count: count, contract_tiers: Object.keys(tiers).length ? tiers : null })
-    .eq('id', id);
-  if (error){ msg.textContent = schemaHint(error.message) || error.message; return; }
+  const { error } = await sb.from('xhs_clients').update({
+    rounds: rows.length ? rows : null,
+    contract_count: cur.contract ?? null,
+    contract_tiers: (cur.tiers && Object.keys(cur.tiers).length) ? cur.tiers : null,
+  }).eq('id', id);
+  if (error){ msg.className = 'msg'; msg.textContent = schemaHint(error.message) || error.message; return; }
 
-  el.value = cnum(el.value) ?? '';
+  if (el && el.type === 'number') el.value = cnum(el.value) ?? '';
   msg.className = 'msg ok';
-  msg.textContent = count ? '저장됨 · 계약 ' + count + '건' : '저장됨 · 계약 표시 안 함';
+  msg.textContent = '저장됨 · ' + rows.length + '개 회차'
+    + (cur.contract ? ' · 현재 ' + cur.n + '회차 계약 ' + cur.contract + '건' : '');
   setTimeout(() => { msg.textContent = ''; msg.className = 'msg'; }, 4000);
 
   const out = $('deal-out-' + id);
   if (out){
-    const tot = out.dataset.total;
-    out.innerHTML = (count && tot !== '')
+    const tot = out.dataset.total, c = cur.contract;
+    out.innerHTML = (c && tot !== '')
       ? '확보 <b>' + tot + '</b>명 · <span class="' +
-        (Math.max(0, count - Number(tot)) ? 'gap' : '') + '">남은 자리 <b>' +
-        Math.max(0, count - Number(tot)) + '</b>건</span>'
+        (Math.max(0, c - Number(tot)) ? 'gap' : '') + '">남은 자리 <b>' +
+        Math.max(0, c - Number(tot)) + '</b>건</span>'
       : '';
   }
+}
+
+/* 회차 한 줄 추가 — 저장은 값을 넣고 칸 밖을 클릭할 때 일어난다.
+   기본값은 "같은 노션에서 이어가기"다(제일 흔한 경우). 새 노션이면 주소를 바꾸고
+   시작 No. 를 1 로 되돌리면 된다. */
+function addRound(id, lastUrl){
+  const box = $('rounds-' + id);
+  const n = box.querySelectorAll('.rrow').length + 1;
+  box.insertAdjacentHTML('beforeend', roundRowHtml(id, { n, notion_url: lastUrl,
+    start_no: '', contract: null, tiers: {}, end: '' }));
+}
+
+function roundRowHtml(id, r){
+  const inp = (cls, val, ph, extra) =>
+    `<input class="in-${cls} mono" type="${extra || 'number'}" value="${esc(val ?? '')}"
+            placeholder="${ph}" onchange="saveRounds(${id}, this)">`;
+  return `<div class="rrow">
+    <span class="rn">${r.n}회차</span>
+    <input class="in-n" type="hidden" value="${r.n}">
+    <input class="in-url" type="url" value="${esc(r.notion_url || '')}"
+           placeholder="노션 주소" onchange="saveRounds(${id}, this)">
+    ${inp('start', r.start_no, '시작 No.')}
+    ${inp('count', r.contract, '계약')}
+    <input class="in-end" type="date" value="${esc(r.end || '')}"
+           onchange="saveRounds(${id}, this)">
+    ${inp('f1k', r.tiers.f1k, '1천')}
+    ${inp('f10k', r.tiers.f10k, '1만')}
+  </div>`;
 }
 
 async function setEnabled(id, v){ await sb.from('xhs_clients').update({ enabled: v }).eq('id', id); loadAll(); }
@@ -385,7 +454,9 @@ async function loadAll(){
       : '<div class="when">아직 수집 전입니다 (다음 자동 수집 때 채워집니다)</div>';
 
     const tot = (s && sum.total != null) ? String(sum.total) : '';
-    const cc = c.contract_count, t = c.contract_tiers || {};
+    const rs = roundsOf(c);
+    const cur = rs[rs.length - 1];
+    const cc = cur.contract, t = cur.tiers || {};
     const gap = cc && tot !== '' ? Math.max(0, cc - Number(tot)) : null;
     const out = (cc && tot !== '')
       ? `확보 <b>${tot}</b>명 · <span class="${gap ? 'gap' : ''}">남은 자리 <b>${gap}</b>건</span>` : '';
@@ -410,18 +481,18 @@ async function loadAll(){
       <div class="c-body">
       ${stats}
       <div class="deal">
-        <div class="grp"><label for="d-count-${c.id}">계약 건수</label>
-          <input class="in-count mono" id="d-count-${c.id}" type="number" min="0" max="999"
-                 value="${cc ?? ''}" placeholder="—" onchange="saveDeal(${c.id}, this)"></div>
-        <div class="sep"></div>
-        <div class="grp"><label for="d-f1k-${c.id}">1천 이상</label>
-          <input class="in-f1k mono" id="d-f1k-${c.id}" type="number" min="0" max="999"
-                 value="${t.f1k ?? ''}" placeholder="—" onchange="saveDeal(${c.id}, this)"></div>
-        <div class="grp"><label for="d-f10k-${c.id}">1만 이상</label>
-          <input class="in-f10k mono" id="d-f10k-${c.id}" type="number" min="0" max="999"
-                 value="${t.f10k ?? ''}" placeholder="—" onchange="saveDeal(${c.id}, this)"></div>
-        <div class="out" id="deal-out-${c.id}" data-total="${tot}">${out}</div>
-        <span class="msg" id="deal-msg-${c.id}"></span>
+        <div class="rhead"><span class="rn"></span><span>노션 주소</span><span>시작 No.</span>
+          <span>계약</span><span>종료일</span><span>1천</span><span>1만</span></div>
+        <div class="rounds" id="rounds-${c.id}">
+          ${rs.map(r => roundRowHtml(c.id, r)).join('')}
+        </div>
+        <div class="rfoot">
+          <button class="ghost sm" onclick="addRound(${c.id}, '${esc(rs[rs.length-1].notion_url)}')">＋ 회차 추가</button>
+          <span class="tip">같은 노션에서 이어가면 주소는 그대로 두고 <b>시작 No.</b> 만 적습니다.
+            새 노션이면 주소를 바꾸고 시작 No. 는 1.</span>
+          <div class="out" id="deal-out-${c.id}" data-total="${tot}">${out}</div>
+          <span class="msg" id="deal-msg-${c.id}"></span>
+        </div>
       </div>
       ${real}
       <div class="meta">

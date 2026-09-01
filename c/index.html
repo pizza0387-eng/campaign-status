@@ -99,6 +99,48 @@ body{
   border:1px solid var(--line-2); border-radius:999px; padding:3px 9px; white-space:nowrap}
 .stamp{font-size:12.5px; color:var(--ink-3); white-space:nowrap}
 
+/* ── 다가오는 방문 ── 매장이 준비해야 하는 정보라 제일 위, 제일 눈에 띄게.
+   오늘·내일이 걸리면 브랜드색 테두리로 올린다(그 밖엔 차분하게).            */
+.soon{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:14px 18px; display:flex; flex-direction:column; gap:9px}
+.soon.hot{border-color:var(--brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 12%,transparent)}
+.soon-h{font-size:13px; font-weight:700; letter-spacing:-.01em; color:var(--ink-2)}
+.soon.hot .soon-h{color:var(--brand)}
+.soon-l{list-style:none; display:flex; flex-direction:column; gap:7px}
+.soon-l li{display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; font-size:14px}
+.soon-l b{color:var(--ink-3); font-size:12.5px; font-weight:600}
+.soon-d{margin-left:auto; font-size:13px; color:var(--ink-2); white-space:nowrap}
+.soon-d em{font-style:normal; font-weight:700; color:var(--brand)}
+.soon-m{font-size:12px; color:var(--ink-3)}
+
+/* ── 회차 머리 · 기간 배지 ── */
+.rnd{display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+  font-size:13px; letter-spacing:-.01em}
+.rnd b{font-size:15px; font-weight:800}
+.per{display:inline-flex; align-items:baseline; gap:5px; padding:2px 9px; border-radius:999px;
+  background:var(--raise); color:var(--ink-2); font-size:12px; white-space:nowrap}
+.per.near{background:var(--wait-bg); color:var(--wait)}
+.per.done{background:var(--idle-bg); color:var(--ink-3)}
+
+/* ── 성과 한 줄 ── */
+.perf{display:flex; flex-wrap:wrap; align-items:baseline; gap:8px;
+  font-size:13px; color:var(--ink-2); padding-top:2px}
+.perf b{color:var(--ink); font-weight:700}
+.perf i{font-style:normal; color:var(--void)}
+
+/* ── 지난 회차 (접힘) ── */
+.past{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow)}
+.past>summary{cursor:pointer; list-style:none; padding:13px 18px; display:flex;
+  flex-wrap:wrap; align-items:center; gap:10px; font-size:13.5px}
+.past>summary::-webkit-details-marker{display:none}
+.past>summary::after{content:'펼치기'; margin-left:auto; font-size:12px; color:var(--ink-3)}
+.past[open]>summary::after{content:'접기'}
+.past>summary b{font-weight:800}
+.past .dim{color:var(--ink-3); font-size:12.5px}
+.past-b{padding:0 18px 17px; display:flex; flex-direction:column; gap:15px;
+  border-top:1px solid var(--line)}
+
 /* ── 이행 현황 (이 페이지의 논지) ── */
 .deal{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   box-shadow:var(--shadow); padding:20px 20px 17px;
@@ -240,10 +282,115 @@ function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;
 
 function cnum(v){ const n = parseInt(String(v ?? '').trim(), 10); return n > 0 ? n : null; }
 
-/* 계약 건수만큼 번호 자리를 채운다 — 사람이 안 정해진 자리는 '미선정'.
-   ⭐자리는 계약 건수까지만 만든다. 노션 표에는 쓰지도 않을 빈 행이 남아 있어서
-     그걸 따라가면 있지도 않은 자리가 생긴다 (마케터 지적, 2026-08-31).
-   ⭐표시 전용이다 — summary(진행 인원 등)는 서버에서 온 값을 그대로 쓴다. */
+/* ── 회차 ──────────────────────────────────────────────────────────────────
+   ⭐같은 업체는 무조건 회차로 정리한다 (2026-09-01 마케터 확정) — 같은 노션에서
+     19번부터 이어지든, 새 노션에서 1번부터 시작하든 광고주 링크는 하나다.
+   ⭐`No.` 는 노션 번호를 그대로 따라간다. 회차는 섹션 제목으로만 알린다.
+   RPC 가 준 rounds(원장 직결, 관리화면 수정이 즉시 반영)를 우선 쓰고,
+   RPC 갱신 SQL 을 아직 안 돌렸으면 summary 에 실려 온 거울을 쓴다. */
+function roundsOf(d){
+  const s = d.summary || {};
+  const raw = (d.rounds && d.rounds.length) ? d.rounds
+            : (s.rounds_meta && s.rounds_meta.length) ? s.rounds_meta : null;
+  if (raw) return raw.slice().sort((a, b) => (cnum(a.n) || 0) - (cnum(b.n) || 0));
+  // 회차 도입 전 데이터 — 지금까지와 똑같이 1회차 하나로 본다
+  return [{ n: 1, contract: cnum(d.contract ?? s.contract), tiers: d.tiers || s.tiers }];
+}
+
+function rowsOfRound(rows, n){
+  return (rows || []).filter(r => (cnum(r.round) || 1) === n);
+}
+
+/* ── 방문 일시 ─────────────────────────────────────────────────────────────
+   ⛔판정 규칙은 xhs_watch.visit_date / past_visit 과 **같아야 한다**
+     (당일까지는 예정, 다음 날부터 지난 것). 갈라지면 뱃지와 배너가 다른 말을 한다. */
+function visitDate(visit, today){
+  const m = /^\s*(\d{1,2})[./](\d{1,2})\b/.exec(String(visit || ''));
+  if (!m) return null;
+  const mo = +m[1], da = +m[2];
+  if (mo < 1 || mo > 12 || da < 1 || da > 31) return null;
+  let d = new Date(today.getFullYear(), mo - 1, da);
+  if (d.getMonth() !== mo - 1) return null;               // 2.30 같은 없는 날짜
+  // 연도가 없으므로 올해로 보되, 반년 넘게 미래면 작년으로 (12월 방문을 1월에 볼 때)
+  if ((d - today) / 86400000 > 182) d = new Date(today.getFullYear() - 1, mo - 1, da);
+  return d;
+}
+
+const DOW = ['일','월','화','수','목','금','토'];
+
+/* 다가오는 방문 — 매장이 준비할 수 있게 맨 위에 띄운다.
+   ⭐마케터 지시(2026-09-01): 알림톡으로 보내지 않고 **화면에 눈에 띄게**. */
+function upcoming(rows, today, days){
+  const lim = days == null ? 7 : days;
+  return (rows || []).map(r => {
+    if (r.status === 'cancelled' || r.status === 'unfilled' || r.status === 'uploaded')
+      return null;
+    const d = visitDate(r.visit, today);
+    if (!d) return null;
+    const gap = Math.round((d - today) / 86400000);
+    return (gap < 0 || gap > lim) ? null : { r, d, gap };
+  }).filter(Boolean).sort((a, b) => a.gap - b.gap || (cnum(a.r.no) || 0) - (cnum(b.r.no) || 0));
+}
+
+function whenWord(gap){ return gap === 0 ? '오늘' : gap === 1 ? '내일' : null; }
+
+function upcomingHtml(list, multi){
+  if (!list.length) return '';
+  const t0 = list.filter(x => x.gap === 0).length;
+  const t1 = list.filter(x => x.gap === 1).length;
+  const rest = list.length - t0 - t1;
+  const bits = [];
+  if (t0) bits.push('오늘 ' + t0 + '건');
+  if (t1) bits.push('내일 ' + t1 + '건');
+  if (rest) bits.push('이후 ' + rest + '건');
+  // ⭐머리말의 건수와 아래 목록 수가 어긋나면 안 된다 — 나눠서 다 적는다
+  const head = (t0 + t1) ? '방문 예정 · ' + bits.join(' · ')
+                         : '다가오는 방문 ' + list.length + '건';
+  return '<section class="soon' + ((t0 + t1) ? ' hot' : '') + '">'
+    + '<div class="soon-h">' + esc(head) + '</div><ul class="soon-l">'
+    + list.slice(0, 5).map(x => {
+        const w = whenWord(x.gap);
+        const day = (x.d.getMonth() + 1) + '/' + x.d.getDate() + '(' + DOW[x.d.getDay()] + ')';
+        const time = String(x.r.visit || '').replace(/^\s*\d{1,2}[./]\d{1,2}\s*\/?\s*/, '');
+        // ⭐회차가 둘이면 번호만으로는 표에서 못 찾는다 (1회차 No.2 와 2회차 No.2 가 둘 다 있다)
+        const tag = (multi && x.r.round) ? x.r.round + '회차 ' : '';
+        return '<li><b class="mono">' + esc(tag) + 'No.' + esc(x.r.no) + '</b> '
+          + esc(x.r.id || '섭외 진행 중')
+          + '<span class="soon-d">' + (w ? '<em>' + w + '</em> ' : '')
+          + esc(day + (time ? ' ' + time : '')) + '</span></li>';
+      }).join('')
+    + '</ul>' + (list.length > 5 ? '<div class="soon-m">외 ' + (list.length - 5) + '건</div>' : '')
+    + '</section>';
+}
+
+/* 기간 배지 — 종료일이 없으면 아예 안 나온다(추측해서 채우지 않는다). */
+function periodHtml(end, today){
+  if (!end) return '';
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(end).trim());
+  if (!m) return '';
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  const left = Math.round((d - today) / 86400000);
+  const label = (+m[2]) + '/' + (+m[3]) + '까지';
+  return '<span class="per' + (left < 0 ? ' done' : left <= 7 ? ' near' : '') + '">'
+    + esc(label) + (left >= 0 ? ' <b class="mono">남은 ' + left + '일</b>' : ' · 종료') + '</span>';
+}
+
+function fmtNum(n){
+  if (!n) return '0';
+  if (n >= 10000) return (Math.round(n / 1000) / 10).toFixed(1).replace(/\.0$/, '') + '만';
+  return n.toLocaleString('ko-KR');
+}
+
+/* 성과 한 줄 — 광고주가 사장님·본사에 그대로 보고할 숫자.
+   ⛔좋아요·저장은 합산하지 않는다 (외주사 수기 입력이라 단위가 뒤죽박죽이다). */
+function perfHtml(s){
+  const bits = [];
+  if (s.total) bits.push('인플루언서 <b class="mono">' + s.total + '명</b>');
+  if (s.follower_sum) bits.push('누적 팔로워 <b class="mono">' + fmtNum(s.follower_sum) + '</b>');
+  if (s.uploaded) bits.push('리뷰 <b class="mono">' + s.uploaded + '건</b>');
+  return bits.length ? '<div class="perf">' + bits.join('<i>·</i>') + '</div>' : '';
+}
+
 /* 빈 자리를 '미선정' 으로 채운다.
 
    ⭐**취소 칸은 그대로 남고, 대체 인원은 다음 번호로 새로 등록된다**
@@ -325,11 +472,49 @@ function rowHtml(r){
     + '</tr>';
 }
 
+function tableHtml(rows){
+  return '<div class="scroll"><table><thead><tr>'
+    + '<th class="c">No.</th><th>인플루언서</th><th class="c">팔로워</th>'
+    + '<th class="c">좋아요·저장</th><th class="c">방문 일시</th>'
+    + '<th class="c">상태</th><th class="c">리뷰</th></tr></thead><tbody>'
+    + (rows.map(rowHtml).join('')
+       || '<tr><td colspan="7" class="state">아직 등록된 체험단이 없습니다.</td></tr>')
+    + '</tbody></table></div>';
+}
+
+/* 회차 하나의 본문 (진행 점수 · 계약 구성 · 미터 · 범례 · 성과 · 표). */
+function roundBody(round, rows, s){
+  const contract = cnum(round.contract);
+  const padded = padRows(rows, contract);
+  return '<div class="deal-top"><div class="score">'
+      + '<span class="n mono">' + (s.uploaded || 0) + '</span>'
+      + (contract ? '<span class="of mono">/ ' + contract + '</span>' : '')
+      + '<span class="cap">리뷰 업로드 완료</span></div>'
+      + specHtml(contract, round.tiers) + '</div>'
+    + (padded.length ? meterHtml(padded) + keysHtml(padded) : '')
+    + perfHtml(s)
+    + tableHtml(padded);
+}
+
 function render(d){
   const s = d.summary || {};
-  const contract = cnum(d.contract ?? s.contract);
-  const rows = padRows(d.rows, contract);
-  const done = s.uploaded || 0;
+  const rows = d.rows || [];
+  const rounds = roundsOf(d);
+  const multi = rounds.length > 1;
+  const cur = rounds[rounds.length - 1];
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const per = (n) => (s.rounds && s.rounds[String(n)]) || s;
+  const sCur = multi ? per(cur.n) : s;
+
+  // 지난 회차는 접는다 — "지금 뭐가 돌아가는지"가 제일 중요하다 (마케터 선택, 2026-09-01)
+  const past = rounds.slice(0, -1).map(r => {
+    const ps = per(r.n), c = cnum(r.contract);
+    return '<details class="past"><summary><b>' + r.n + '회차</b>'
+      + (c ? '<span class="dim">계약 ' + c + '건</span>' : '')
+      + '<span class="dim">리뷰 ' + (ps.uploaded || 0) + '건 완료</span>'
+      + periodHtml(r.end, today) + '</summary>'
+      + '<div class="past-b">' + roundBody(r, rowsOfRound(rows, r.n), ps) + '</div></details>';
+  }).join('');
 
   document.title = d.name + ' 샤오홍슈 체험단 현황';
   document.getElementById('app').innerHTML = `
@@ -341,29 +526,15 @@ function render(d){
       <div class="stamp">마지막 확인 ${esc(d.fetched_at || '—')}</div>
     </header>
 
-    <section class="deal">
-      <div class="deal-top">
-        <div class="score">
-          <span class="n mono">${done}</span>
-          ${contract ? `<span class="of mono">/ ${contract}</span>` : ''}
-          <span class="cap">리뷰 업로드 완료</span>
-        </div>
-        ${specHtml(contract, d.tiers)}
-      </div>
-      ${rows.length ? meterHtml(rows) + keysHtml(rows) : ''}
-    </section>
+    ${upcomingHtml(upcoming(rows, today), multi)}
+    ${past}
 
-    <section class="list"><div class="scroll">
-      <table>
-        <thead><tr>
-          <th class="c">No.</th><th>인플루언서</th><th class="c">팔로워</th>
-          <th class="c">좋아요·저장</th><th class="c">방문 일시</th>
-          <th class="c">상태</th><th class="c">리뷰</th>
-        </tr></thead>
-        <tbody>${rows.map(rowHtml).join('') ||
-          '<tr><td colspan="7" class="state">아직 등록된 체험단이 없습니다.</td></tr>'}</tbody>
-      </table>
-    </div></section>
+    <section class="deal">
+      ${multi ? `<div class="rnd"><b>${cur.n}회차</b>${periodHtml(cur.end, today)}</div>`
+              : (periodHtml(cur.end, today)
+                 ? `<div class="rnd">${periodHtml(cur.end, today)}</div>` : '')}
+      ${roundBody(cur, multi ? rowsOfRound(rows, cur.n) : rows, sCur)}
+    </section>
 
     <footer class="foot">
       마지막 변경 ${esc(d.last_change || '—')} · 이 페이지는 자동으로 갱신됩니다.<br>
