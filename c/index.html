@@ -244,20 +244,34 @@ function cnum(v){ const n = parseInt(String(v ?? '').trim(), 10); return n > 0 ?
    ⭐자리는 계약 건수까지만 만든다. 노션 표에는 쓰지도 않을 빈 행이 남아 있어서
      그걸 따라가면 있지도 않은 자리가 생긴다 (마케터 지적, 2026-08-31).
    ⭐표시 전용이다 — summary(진행 인원 등)는 서버에서 온 값을 그대로 쓴다. */
+/* 빈 자리를 '미선정' 으로 채운다.
+
+   ⭐**취소 칸은 그대로 남고, 대체 인원은 다음 번호로 새로 등록된다**
+     (2026-09-01 마케터 확정: "취소칸은 그냥 취소로 남겨둘거야. 추가로 모집되면
+     16,17,18번으로 등록되는거지"). 그래서 채울 자리 수는 **남은 자리**
+     (= 계약 − 확보인원)이고, 번호는 1부터 메우는 게 아니라 **마지막 번호 다음**부터다.
+   ⛔ 예전처럼 `1..계약건수` 의 빈 번호를 메우면, 취소 3건이 그 범위 안에 있을 때
+     미선정 칸이 1개만 생기는데 머리말은 '남은 자리 4건' 이라고 말한다 — 실제로
+     그렇게 어긋나 있었다. 표의 미선정 칸 수와 '남은 자리' 는 **항상 같아야 한다.**
+   ⛔ 중간에 빠진 번호를 억지로 만들지 않는다. 외주사가 안 쓴 번호는 없는 자리다. */
 function padRows(rows, contract){
   const c = cnum(contract);
   const out = (rows || []).slice();
   if (!c) return out;
-  const have = new Set(out.map(r => String(r.no ?? '')));
-  for (let n = 1; n <= c; n++){
-    if (!have.has(String(n)))
-      out.push({ no: String(n), id:'', followers:'', reactions:'', visit:'',
-                 xhs:'', xhs_title:'', dp:'', key:'pad-' + n, status:'unfilled' });
+  const HELD = r => r.status !== 'cancelled' && r.status !== 'unfilled'
+                 && r.status !== 'empty';
+  const alive = out.filter(HELD).length;
+  let next = out.reduce((m, r) => Math.max(m, parseInt(r.no, 10) || 0), 0) + 1;
+  for (let i = alive; i < c; i++, next++){
+    out.push({ no: String(next), id:'', followers:'', reactions:'', visit:'',
+               xhs:'', xhs_title:'', dp:'', key:'pad-' + next, status:'unfilled' });
   }
   return out.sort((a, b) => (parseInt(a.no,10) || 1e6) - (parseInt(b.no,10) || 1e6));
 }
 
-/* 계약 1건 = 칸 1개. 표의 번호와 1:1로 맞물려서, 색만 보고도 어느 자리가 비었는지 안다. */
+/* 칸 하나 = 표의 한 줄. 번호와 1:1로 맞물려서, 색만 보고도 어느 자리가 비었는지 안다.
+   취소가 나면 그 칸은 회색으로 남고 대체 인원의 칸이 뒤에 붙으므로, 칸 수가 계약
+   건수보다 많아질 수 있다 — 그게 "15자리 계약인데 3명 취소돼 3명 더 섭외했다" 는 뜻이다. */
 function meterHtml(rows){
   return '<div class="meter" role="img" aria-label="계약 자리별 진행 상태">'
     + rows.map(r => '<i class="m-' + r.status + '" title="'
