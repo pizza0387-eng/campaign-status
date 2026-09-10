@@ -128,9 +128,12 @@ body{
 .perf b{color:var(--ink); font-weight:700}
 .perf i{font-style:normal; color:var(--void)}
 
-/* ── 지난 회차 (접힘) ── */
+/* ── 회차 상자 (접힘 — 회차가 둘 이상이면 전부, 2026-09-10) ── */
 .past{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   box-shadow:var(--shadow)}
+.past.cur{border-color:var(--brand)}
+.past .now{display:inline-flex; padding:1px 8px; border-radius:999px; background:var(--brand);
+  color:#fff; font-size:11.5px; font-weight:700; letter-spacing:0}
 .past>summary{cursor:pointer; list-style:none; padding:13px 18px; display:flex;
   flex-wrap:wrap; align-items:center; gap:10px; font-size:13.5px}
 .past>summary::-webkit-details-marker{display:none}
@@ -496,25 +499,48 @@ function roundBody(round, rows, s){
     + tableHtml(padded);
 }
 
-function render(d){
-  const s = d.summary || {};
-  const rows = d.rows || [];
-  const rounds = roundsOf(d);
-  const multi = rounds.length > 1;
-  const cur = rounds[rounds.length - 1];
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const per = (n) => (s.rounds && s.rounds[String(n)]) || s;
-  const sCur = multi ? per(cur.n) : s;
+/* 회차 블록 전체.
+   ⭐회차가 둘 이상이면 **전부 접어서** 낸다 (2026-09-10 마케터: "둘다 접기를 기본으로").
+     그 전엔 지난 회차만 접고 현재 회차는 펼쳐 두었는데(2026-09-01), 2회차를 넣자
+     1회차만 접히고 2회차가 통째로 펼쳐져 화면이 길어졌다. 머리줄(회차 · 진행 중 ·
+     계약 · 리뷰 완료 · 기간)만으로 한눈에 보이고, 누르면 펼쳐진다.
+   회차가 하나면 접을 이유가 없다 — 종전대로 바로 보인다. */
+/* 행 목록에서 요약을 직접 센다 — 수집기의 summarize() 와 같은 규칙(취소는 진행에서 뺀다).
+   팔로워 합계는 안 센다(원문 표기가 제각각) — 다음 수집이 채운다. */
+function sumRows(rows){
+  const live = (rows || []).filter(r => r.status !== 'cancelled' && r.status !== 'unfilled');
+  return { total: live.length,
+           uploaded: live.filter(r => r.status === 'uploaded').length };
+}
 
-  // 지난 회차는 접는다 — "지금 뭐가 돌아가는지"가 제일 중요하다 (마케터 선택, 2026-09-01)
-  const past = rounds.slice(0, -1).map(r => {
-    const ps = per(r.n), c = cnum(r.contract);
-    return '<details class="past"><summary><b>' + r.n + '회차</b>'
+function roundsHtml(rounds, rows, s, today){
+  const cur = rounds[rounds.length - 1];
+  if (rounds.length < 2) {
+    const p = periodHtml(cur.end, today);
+    return '<section class="deal">' + (p ? '<div class="rnd">' + p + '</div>' : '')
+      + roundBody(cur, rows, s) + '</section>';
+  }
+  // ⭐회차별 요약이 아직 없으면(관리화면에서 방금 회차를 넣어 다음 수집 전) 행에서 직접 센다.
+  //   업체 전체 요약(s)으로 폴백하면 새 2회차 머리줄에 "리뷰 15건 완료"가 찍힌다 —
+  //   전부 접힌 화면에선 머리줄이 광고주가 보는 전부라 거짓말이 된다 (2026-09-10 검증 지적).
+  const per = (n) => (s.rounds && s.rounds[String(n)]) || sumRows(rowsOfRound(rows, n));
+  return rounds.map(r => {
+    const ps = per(r.n), c = cnum(r.contract), isCur = r === cur;
+    return '<details class="past' + (isCur ? ' cur' : '') + '"><summary><b>' + r.n + '회차</b>'
+      + (isCur ? '<span class="now">진행 중</span>' : '')
       + (c ? '<span class="dim">계약 ' + c + '건</span>' : '')
       + '<span class="dim">리뷰 ' + (ps.uploaded || 0) + '건 완료</span>'
       + periodHtml(r.end, today) + '</summary>'
       + '<div class="past-b">' + roundBody(r, rowsOfRound(rows, r.n), ps) + '</div></details>';
   }).join('');
+}
+
+function render(d){
+  const s = d.summary || {};
+  const rows = d.rows || [];
+  const rounds = roundsOf(d);
+  const multi = rounds.length > 1;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
 
   document.title = d.name + ' 샤오홍슈 체험단 현황';
   document.getElementById('app').innerHTML = `
@@ -527,14 +553,7 @@ function render(d){
     </header>
 
     ${upcomingHtml(upcoming(rows, today), multi)}
-    ${past}
-
-    <section class="deal">
-      ${multi ? `<div class="rnd"><b>${cur.n}회차</b>${periodHtml(cur.end, today)}</div>`
-              : (periodHtml(cur.end, today)
-                 ? `<div class="rnd">${periodHtml(cur.end, today)}</div>` : '')}
-      ${roundBody(cur, multi ? rowsOfRound(rows, cur.n) : rows, sCur)}
-    </section>
+    ${roundsHtml(rounds, rows, s, today)}
 
     <footer class="foot">
       마지막 변경 ${esc(d.last_change || '—')} · 이 페이지는 자동으로 갱신됩니다.<br>
