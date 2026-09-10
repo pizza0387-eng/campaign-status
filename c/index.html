@@ -131,9 +131,10 @@ body{
 /* ── 회차 상자 (접힘 — 회차가 둘 이상이면 전부, 2026-09-10) ── */
 .past{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   box-shadow:var(--shadow)}
-.past.cur{border-color:var(--brand)}
+.past.on{border-color:var(--brand)}
 .past .now{display:inline-flex; padding:1px 8px; border-radius:999px; background:var(--brand);
   color:#fff; font-size:11.5px; font-weight:700; letter-spacing:0}
+.past .now.done{background:var(--idle-bg); color:var(--ink-3)}
 .past>summary{cursor:pointer; list-style:none; padding:13px 18px; display:flex;
   flex-wrap:wrap; align-items:center; gap:10px; font-size:13.5px}
 .past>summary::-webkit-details-marker{display:none}
@@ -513,6 +514,20 @@ function sumRows(rows){
            uploaded: live.filter(r => r.status === 'uploaded').length };
 }
 
+/* 그 회차가 아직 돌아가고 있나 — **마지막 회차냐가 아니라 일이 남았느냐**로 본다
+   (2026-09-10 마케터: "1회차도 아직 진행중인데, 완료가 아닌데 진행중이 안 뜨네").
+   2회차를 시작해도 1회차 리뷰가 다 안 올라왔으면 1회차는 여전히 진행 중이다.
+     · 계약 건수를 넣었으면 → 리뷰가 계약 수만큼 올라왔을 때 완료
+     · 안 넣었으면 → 섭외된 사람이 전부 리뷰까지 끝냈을 때 완료
+     · 사람도 계약도 없는 빈 회차(방금 등록) → 진행 중
+   ⛔종료일로 판단하지 않는다 — 기간이 끝나도 리뷰가 안 찼으면 우리가 할 일이 남은 것이고,
+     그건 기간 배지가 따로 `종료` 라고 말한다. */
+function roundOngoing(round, s){
+  const c = cnum(round.contract), up = s.uploaded || 0;
+  if (c) return up < c;
+  return !(s.total && up >= s.total);
+}
+
 function roundsHtml(rounds, rows, s, today){
   const cur = rounds[rounds.length - 1];
   if (rounds.length < 2) {
@@ -525,9 +540,9 @@ function roundsHtml(rounds, rows, s, today){
   //   전부 접힌 화면에선 머리줄이 광고주가 보는 전부라 거짓말이 된다 (2026-09-10 검증 지적).
   const per = (n) => (s.rounds && s.rounds[String(n)]) || sumRows(rowsOfRound(rows, n));
   return rounds.map(r => {
-    const ps = per(r.n), c = cnum(r.contract), isCur = r === cur;
-    return '<details class="past' + (isCur ? ' cur' : '') + '"><summary><b>' + r.n + '회차</b>'
-      + (isCur ? '<span class="now">진행 중</span>' : '')
+    const ps = per(r.n), c = cnum(r.contract), on = roundOngoing(r, ps);
+    return '<details class="past' + (on ? ' on' : '') + '"><summary><b>' + r.n + '회차</b>'
+      + (on ? '<span class="now">진행 중</span>' : '<span class="now done">완료</span>')
       + (c ? '<span class="dim">계약 ' + c + '건</span>' : '')
       + '<span class="dim">리뷰 ' + (ps.uploaded || 0) + '건 완료</span>'
       + periodHtml(r.end, today) + '</summary>'
