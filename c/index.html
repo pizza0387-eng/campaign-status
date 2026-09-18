@@ -302,14 +302,28 @@ function cnum(v){ const n = parseInt(String(v ?? '').trim(), 10); return n > 0 ?
      19번부터 이어지든, 새 노션에서 1번부터 시작하든 광고주 링크는 하나다.
    ⭐`No.` 는 노션 번호를 그대로 따라간다. 회차는 섹션 제목으로만 알린다.
    RPC 가 준 rounds(원장 직결, 관리화면 수정이 즉시 반영)를 우선 쓰고,
-   RPC 갱신 SQL 을 아직 안 돌렸으면 summary 에 실려 온 거울을 쓴다. */
+   RPC 갱신 SQL 을 아직 안 돌렸으면 summary 에 실려 온 거울을 쓴다.
+
+   ⭐안내 문구(제공내역·방문가능 시간)는 **회차가 원장**이고, 그 회차가
+   비어 있으면 업체 공통 칸으로 떨어진다 — 두 칸은 **따로** 판정한다(제공내역만
+   회차마다 바뀌고 방문 시간은 매번 같은 경우가 흔하다, 2026-09-18 마케터 지시).
+   🚨**폴백은 여기 한 곳이다.** RPC 도, 수집기도, 관리화면도 폴백하지 않는다 —
+     전부 회차가 실제로 가진 값만 넘긴다. 특히 수집기가 폴백하면 공통값이
+     `summary.rounds_meta` 거울에 구워져, 회차 줄을 안 만든 업체(RPC 의 `rounds` 가
+     NULL 이라 늘 거울 경로)에서 **라이브 `d.offer` 를 영영 가린다** — 관리화면에서
+     고쳐도 다음 수집까지 옛 문구가 나간다 (2026-09-18 감사 지적·재현 확인).
+   ⛔그래도 거울 경로에서 `r.offer` 를 먼저 보는 건 맞다 — 거울에 담긴 **회차별**
+     안내는 진짜 값이라 살려야 한다(RPC 갱신 SQL 전 화면이 이 경로로 온다). */
 function roundsOf(d){
   const s = d.summary || {};
+  const g = v => (typeof v === 'string' ? v.trim() : '');
+  const fill = r => ({ ...r, offer: g(r.offer) || g(d.offer),
+                             visit_hours: g(r.visit_hours) || g(d.visit_hours) });
   const raw = (d.rounds && d.rounds.length) ? d.rounds
             : (s.rounds_meta && s.rounds_meta.length) ? s.rounds_meta : null;
-  if (raw) return raw.slice().sort((a, b) => (cnum(a.n) || 0) - (cnum(b.n) || 0));
+  if (raw) return raw.slice().sort((a, b) => (cnum(a.n) || 0) - (cnum(b.n) || 0)).map(fill);
   // 회차 도입 전 데이터 — 지금까지와 똑같이 1회차 하나로 본다
-  return [{ n: 1, contract: cnum(d.contract ?? s.contract), tiers: d.tiers || s.tiers }];
+  return [fill({ n: 1, contract: cnum(d.contract ?? s.contract), tiers: d.tiers || s.tiers })];
 }
 
 function rowsOfRound(rows, n){
@@ -522,7 +536,10 @@ function tableHtml(rows){
 function roundBody(round, rows, s){
   const contract = cnum(round.contract);
   const padded = padRows(rows, contract);
-  return '<div class="deal-top"><div class="score">'
+  // ⭐안내는 **그 회차 것**이다 (2026-09-18). 회차마다 제공 조건이 달라서
+  //   맨 위에 한 벌로 내면 어느 회차 이야기인지 광고주가 알 수 없다.
+  return guideHtml(round.offer, round.visit_hours)
+    + '<div class="deal-top"><div class="score">'
       + '<span class="n mono">' + (s.uploaded || 0) + '</span>'
       + (contract ? '<span class="of mono">/ ' + contract + '</span>' : '')
       + '<span class="cap">리뷰 업로드 완료</span></div>'
@@ -601,7 +618,6 @@ function render(d){
     </header>
 
     ${upcomingHtml(upcoming(rows, today), multi)}
-    ${guideHtml(d.offer, d.visit_hours)}
     ${roundsHtml(rounds, rows, s, today)}
 
     <footer class="foot">

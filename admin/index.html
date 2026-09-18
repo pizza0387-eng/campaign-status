@@ -145,6 +145,13 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
 .deal input{padding:6px 8px; background:var(--surface); width:100%}
 .deal .in-start,.deal .in-count,.deal .in-f1k,.deal .in-f10k{text-align:center}
 .deal .in-url{font-size:12px}
+/* 안내 두 칸 — 회차 줄의 둘째 줄로 전폭 배치. 7칸 가로 grid 를 건드리지 않는다
+   (칸 너비가 58~132px 고정이라 긴 글 입력칸을 끼우면 전부 뭉개진다). */
+.rrow .rguide{grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr; gap:7px}
+.rrow .rguide label{display:block; font-size:11px; color:var(--ink-3); font-weight:600;
+  margin:0 0 3px 2px}
+.rrow .rguide textarea{width:100%; padding:6px 8px; background:var(--surface);
+  font:inherit; font-size:12px; line-height:1.5; resize:vertical; min-height:46px}
 .rfoot{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin-top:3px}
 .rfoot .tip{font-size:11.5px; color:var(--ink-3); line-height:1.55}
 .rfoot .tip b{color:var(--ink-2)}
@@ -169,6 +176,7 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
   .rrow{grid-template-columns:1fr 1fr; gap:6px; padding:9px; background:var(--surface);
     border-radius:9px}
   .rrow .rn,.rrow .in-url{grid-column:1/-1}
+  .rrow .rguide{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -212,7 +220,7 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
               <input id="f-f10k" type="number" min="0" max="999" placeholder="예: 5"></div>
           </div>
           <div class="fields2">
-            <div class="field"><label for="f-offer">제공내역 <span class="hint">— 선택, 광고주 화면에 표시</span></label>
+            <div class="field"><label for="f-offer">제공내역 <span class="hint">— 선택, 공통값(회차별로 다르면 등록 후 회차 줄에)</span></label>
               <textarea id="f-offer" rows="2" placeholder="예: 2인 식사권 (5만원 상당)"></textarea></div>
             <div class="field"><label for="f-hours">방문가능 요일·시간대 <span class="hint">— 선택</span></label>
               <textarea id="f-hours" rows="2" placeholder="예: 평일 14:00~17:00 / 주말 불가"></textarea></div>
@@ -352,16 +360,28 @@ function schemaHint(msg){
 }
 
 /* 업체의 회차 목록. 비어 있으면 옛 원장(notion_url·contract_count·contract_tiers)으로
-   1회차를 합성한다 — 수집기 xhs_watch.client_rounds 와 **같은 규칙**이어야 한다. */
+   1회차를 합성한다 — 수집기 xhs_watch.client_rounds 와 **같은 규칙**이어야 한다.
+
+   ⛔**안내 두 칸(offer·visit_hours)은 여기서 폴백하지 않는다** (2026-09-18).
+     업체 공통 칸 값을 회차 입력칸에 미리 채우면, 회차에서 아무 칸이나 고쳐 저장하는
+     순간 그 값이 회차 안으로 **복사되어 박힌다.** 그 뒤로는 공통 칸을 고쳐도 광고주
+     화면이 안 따라오는데, 화면상으론 똑같아 보여서 원인을 못 찾는다.
+     폴백은 **보여 줄 때**(뷰어 roundsOf) 한 곳에서만 한다 — 수집기도 안 한다
+     (수집기에서 하면 공통값이 광고주 화면 거울에 구워져 라이브 값을 가린다).
+   ⚠계약 건수(contract_count)를 합성 회차로 이어받는 것과 다르다 — 그쪽은 회차가
+     옛 칸을 **대체**하지만, 공통 안내 칸은 기본값으로 **계속 살아 있기** 때문이다. */
 function roundsOf(c){
+  const g = v => (typeof v === 'string' ? v.trim() : '');
   const rs = Array.isArray(c.rounds) ? c.rounds.filter(r => r && typeof r === 'object') : [];
   if (rs.length)
     return rs.map((r, i) => ({ n: cnum(r.n) || i + 1, notion_url: r.notion_url || c.notion_url || '',
                                start_no: cnum(r.start_no) || 1, contract: cnum(r.contract),
-                               tiers: r.tiers || {}, end: r.end || '' }))
+                               tiers: r.tiers || {}, end: r.end || '',
+                               offer: g(r.offer), visit_hours: g(r.visit_hours) }))
              .sort((a, b) => a.n - b.n);
   return [{ n: 1, notion_url: c.notion_url || '', start_no: 1,
-            contract: cnum(c.contract_count), tiers: c.contract_tiers || {}, end: '' }];
+            contract: cnum(c.contract_count), tiers: c.contract_tiers || {}, end: '',
+            offer: '', visit_hours: '' }];
 }
 
 async function addClient(){
@@ -413,16 +433,26 @@ async function saveRounds(id, el){
     const g = s => r.querySelector('.in-' + s);
     const tiers = {};
     TIERS.forEach(([k]) => { const v = cnum(g(k).value); if (v) tiers[k] = v; });
-    return { n: cnum(g('n').value) || i + 1,
-             notion_url: g('url').value.trim(),
-             start_no: cnum(g('start').value) || 1,
-             contract: cnum(g('count').value),
-             tiers, end: g('end').value.trim() };
+    const row = { n: cnum(g('n').value) || i + 1,
+                  notion_url: g('url').value.trim(),
+                  start_no: cnum(g('start').value) || 1,
+                  contract: cnum(g('count').value),
+                  tiers, end: g('end').value.trim() };
+    // ⭐안 적은 칸은 **키를 아예 안 넣는다.** 빈 문자열을 넣어도 지금은 같게 동작하지만,
+    //   '이 회차는 공통 칸을 쓴다'와 '빈칸으로 덮었다'가 구분이 안 돼 나중에 헷갈린다.
+    //   ⛔앞뒤 공백만 자르고 줄바꿈은 살린다 — 여러 줄로 적는 안내문이다.
+    const off = g('offer').value.trim(), hrs = g('hours').value.trim();
+    if (off) row.offer = off;
+    if (hrs) row.visit_hours = hrs;
+    return row;
   }).filter(r => r.notion_url);
   rows.sort((a, b) => a.n - b.n);
 
   const cur = rows[rows.length - 1] || {};
   msg.className = 'msg'; msg.textContent = '저장 중…';
+  // ⛔`offer`·`visit_hours` 는 거울로 쓰지 않는다 (2026-09-18). 계약 건수와 달리
+  //   공통 칸은 '회차가 비면 쓰는 기본값' 으로 계속 살아 있어서, 마지막 회차 값으로
+  //   덮으면 회차를 고칠 때마다 그 기본값이 조용히 따라 바뀐다.
   const { error } = await sb.from('xhs_clients').update({
     rounds: rows.length ? rows : null,
     contract_count: cur.contract ?? null,
@@ -454,7 +484,7 @@ function addRound(id, lastUrl){
   const box = $('rounds-' + id);
   const n = box.querySelectorAll('.rrow').length + 1;
   box.insertAdjacentHTML('beforeend', roundRowHtml(id, { n, notion_url: lastUrl,
-    start_no: '', contract: null, tiers: {}, end: '' }));
+    start_no: '', contract: null, tiers: {}, end: '', offer: '', visit_hours: '' }));
 }
 
 function roundRowHtml(id, r){
@@ -472,6 +502,16 @@ function roundRowHtml(id, r){
            onchange="saveRounds(${id}, this)">
     ${inp('f1k', r.tiers.f1k, '1천')}
     ${inp('f10k', r.tiers.f10k, '1만')}
+    <div class="rguide">
+      <div><label for="r-off-${id}-${r.n}">${r.n}회차 제공내역</label>
+        <textarea class="in-offer" id="r-off-${id}-${r.n}" rows="2"
+          onchange="saveRounds(${id}, this)"
+          placeholder="비우면 아래 공통 칸이 나갑니다">${esc(r.offer || '')}</textarea></div>
+      <div><label for="r-hrs-${id}-${r.n}">${r.n}회차 방문가능 요일·시간</label>
+        <textarea class="in-hours" id="r-hrs-${id}-${r.n}" rows="2"
+          onchange="saveRounds(${id}, this)"
+          placeholder="비우면 아래 공통 칸이 나갑니다">${esc(r.visit_hours || '')}</textarea></div>
+    </div>
   </div>`;
 }
 
@@ -582,18 +622,19 @@ async function loadAll(){
       <div class="meta">
         <div>노션 <a href="${esc(c.notion_url)}" target="_blank" rel="noopener">${esc(c.notion_url)}</a></div>
         <div class="field">
-          <label for="g-offer-${c.id}">제공내역 <span class="hint">— 광고주 화면 위쪽에 그대로 표시됩니다</span></label>
+          <label for="g-offer-${c.id}">제공내역 <span class="hint">— 공통. 위 회차 칸이 비어 있는 회차에만 나갑니다</span></label>
           <textarea id="g-offer-${c.id}" rows="2"
             placeholder="예) 2인 식사권 (5만원 상당) · 음료 2잔 포함">${esc(c.offer || '')}</textarea>
-          <label for="g-hours-${c.id}" style="margin-top:9px">방문가능 요일 및 시간대</label>
+          <label for="g-hours-${c.id}" style="margin-top:9px">방문가능 요일 및 시간대
+            <span class="hint">— 공통</span></label>
           <textarea id="g-hours-${c.id}" rows="2"
             placeholder="예) 평일 14:00~17:00 / 주말·공휴일 방문 불가">${esc(c.visit_hours || '')}</textarea>
           <div class="row" style="margin-top:8px">
             <button class="sm" id="g-save-${c.id}" onclick="saveGuide(${c.id})">안내 문구 저장</button>
             <span class="msg" id="g-msg-${c.id}" role="status"></span>
           </div>
-          <span class="hint-line">두 칸 다 비우면 광고주 화면에 이 안내가 아예 안 나옵니다.
-            줄바꿈은 그대로 보입니다.</span>
+          <span class="hint-line">회차마다 다르면 <b>위 회차 줄</b>에 적으세요 — 거기 적은 것이 이깁니다.
+            회차와 여기가 모두 비면 그 회차에는 안내가 아예 안 나옵니다. 줄바꿈은 그대로 보입니다.</span>
         </div>
         <div class="field">
           <label for="phone-${c.id}">알림톡 받을 휴대폰 번호</label>
