@@ -113,6 +113,17 @@ body{
 .soon-d em{font-style:normal; font-weight:700; color:var(--brand)}
 .soon-m{font-size:12px; color:var(--ink-3)}
 
+/* ── 캠페인 안내 (제공내역 · 방문가능 시간) ── 2026-09-18 마케터 요청.
+   매장이 인플루언서를 맞을 때 필요한 두 가지라 방문 일정 바로 아래에 둔다.
+   값은 관리화면에서 사람이 친 글자 그대로다 — 비어 있으면 그 줄이 아예 안 나온다. */
+.guide{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:14px 18px; display:grid; gap:10px}
+.guide>div{display:grid; grid-template-columns:104px 1fr; gap:4px 14px; align-items:baseline}
+.guide dt{font-size:12.5px; font-weight:700; color:var(--ink-3); letter-spacing:-.01em;
+  white-space:nowrap}
+.guide dd{font-size:14px; line-height:1.55; color:var(--ink); overflow-wrap:anywhere}
+@media (max-width:540px){ .guide>div{grid-template-columns:1fr; gap:2px} }
+
 /* ── 회차 머리 · 기간 배지 ── */
 .rnd{display:flex; flex-wrap:wrap; align-items:center; gap:10px;
   font-size:13px; letter-spacing:-.01em}
@@ -367,6 +378,27 @@ function upcomingHtml(list, multi){
     + '</section>';
 }
 
+/* 캠페인 안내 — 제공내역 · 방문가능 요일/시간대 (2026-09-18 마케터 요청).
+
+   ⭐출처는 **관리화면에 사람이 입력한 글자** 하나다. 노션 본문에서 긁어오지 않는다 —
+     본문에는 외주 정산액·외주사 담당자 실명이 섞여 있어(CLAUDE.md 절대규칙 1),
+     본문을 옮기는 순간 광고주 화면으로 샌다. 표에도 이 칸은 없다(규칙 4).
+   ⛔안 적었으면 그 줄을 **아예 안 낸다.** '미정' 같은 말을 지어내지 않는다 —
+     기간 배지(periodHtml)가 종료일 없을 때 아무것도 안 내는 것과 같은 규칙이다.
+   ⭐줄바꿈은 살린다(여러 줄로 적는 게 자연스러운 내용이다). escape 를 **먼저** 하고
+     그다음에 <br> 로 바꾼다 — 순서가 바뀌면 <br> 이 &lt;br&gt; 로 보인다. */
+function multiline(s){
+  return esc(s).replace(/\r\n|\r|\n/g, '<br>');
+}
+
+function guideHtml(offer, hours){
+  const items = [['제공내역', offer], ['방문가능 시간', hours]]
+    .filter(([, v]) => String(v ?? '').trim())
+    .map(([label, v]) => '<div><dt>' + label + '</dt><dd>'
+      + multiline(String(v).trim()) + '</dd></div>');
+  return items.length ? '<dl class="guide">' + items.join('') + '</dl>' : '';
+}
+
 /* 기간 배지 — 종료일이 없으면 아예 안 나온다(추측해서 채우지 않는다). */
 function periodHtml(end, today){
   if (!end) return '';
@@ -564,10 +596,12 @@ function render(d){
         <h1><span class="mark">${esc(d.name)}</span> 체험단 진행 현황</h1>
         <span class="kind">샤오홍슈 小红书</span>
       </div>
-      <div class="stamp">마지막 확인 ${esc(d.fetched_at || '—')}</div>
+      <div class="stamp">${d.fetched_at ? '마지막 확인 ' + esc(d.fetched_at)
+                                         : '첫 확인을 준비하고 있습니다'}</div>
     </header>
 
     ${upcomingHtml(upcoming(rows, today), multi)}
+    ${guideHtml(d.offer, d.visit_hours)}
     ${roundsHtml(rounds, rows, s, today)}
 
     <footer class="foot">

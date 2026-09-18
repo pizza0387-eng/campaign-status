@@ -75,10 +75,12 @@ body{
 
 label{display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:5px}
 label .hint{font-weight:400; color:var(--ink-3)}
-input{font:inherit; width:100%; padding:9px 11px; border-radius:9px;
+input,textarea{font:inherit; width:100%; padding:9px 11px; border-radius:9px;
   border:1px solid var(--line-2); background:var(--sink); color:var(--ink)}
-input::placeholder{color:var(--ink-3)}
-input:focus-visible{outline:2px solid var(--brand); outline-offset:1px; border-color:transparent}
+input::placeholder,textarea::placeholder{color:var(--ink-3)}
+input:focus-visible,textarea:focus-visible{outline:2px solid var(--brand); outline-offset:1px; border-color:transparent}
+/* 제공내역·방문가능 시간 — 여러 줄로 적는 게 자연스러운 내용이라 textarea 로 둔다 */
+textarea{resize:vertical; min-height:58px; line-height:1.5}
 .field{margin-bottom:12px}
 .fields2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
 
@@ -200,13 +202,20 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
             <div class="field"><label for="f-count">계약 건수 <span class="hint">— 총 몇 명</span></label>
               <input id="f-count" type="number" min="1" max="999" placeholder="예: 15"></div>
             <div class="field"><label for="f-phone">광고주 담당자 휴대폰 <span class="hint">— 알림톡용, 선택</span></label>
-              <input id="f-phone" placeholder="010..."></div>
+              <input id="f-phone" type="tel" inputmode="tel" placeholder="010-1234-5678">
+              <span class="hint">번호를 넣으면 변경 감지 시 자동 알림톡 발송 · 비워 두면 알림톡 중지</span></div>
           </div>
           <div class="fields2">
             <div class="field"><label for="f-f1k">계약 구성 · 1천 이상 <span class="hint">(명)</span></label>
               <input id="f-f1k" type="number" min="0" max="999" placeholder="예: 10"></div>
             <div class="field"><label for="f-f10k">계약 구성 · 1만 이상 <span class="hint">(명)</span></label>
               <input id="f-f10k" type="number" min="0" max="999" placeholder="예: 5"></div>
+          </div>
+          <div class="fields2">
+            <div class="field"><label for="f-offer">제공내역 <span class="hint">— 선택, 광고주 화면에 표시</span></label>
+              <textarea id="f-offer" rows="2" placeholder="예: 2인 식사권 (5만원 상당)"></textarea></div>
+            <div class="field"><label for="f-hours">방문가능 요일·시간대 <span class="hint">— 선택</span></label>
+              <textarea id="f-hours" rows="2" placeholder="예: 평일 14:00~17:00 / 주말 불가"></textarea></div>
           </div>
           <div class="row"><button onclick="addClient()">등록</button>
             <span class="msg" id="reg-msg"></span></div>
@@ -243,6 +252,68 @@ function cnum(v){ const n = parseInt(String(v ?? '').trim(), 10); return n > 0 ?
 
 const TIERS = [['f1k','1천 이상'], ['f10k','1만 이상']];
 
+function normalizePhone(value){
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (!/^[0-9\s-]+$/.test(raw)) throw new Error('휴대폰 번호를 숫자와 하이픈으로 입력해 주세요.');
+  const phone = raw.replace(/[\s-]/g, '');
+  if (!/^010\d{8}$/.test(phone)) throw new Error('010으로 시작하는 휴대폰 번호 11자리를 입력해 주세요.');
+  return phone;
+}
+
+async function savePhone(id){
+  const input = $('phone-' + id), msg = $('phone-msg-' + id), button = $('phone-save-' + id);
+  if (button.disabled) return;
+  msg.className = 'msg';
+  let phone;
+  try { phone = normalizePhone(input.value); }
+  catch (e){ msg.textContent = e.message; return; }
+  button.disabled = true; input.disabled = true; msg.textContent = '저장 중…';
+  try {
+    const {data, error} = await sb.from('xhs_clients').update({phone}).eq('id', id).select('id,phone').single();
+    if (error || !data || data.phone !== phone) throw new Error('저장 결과를 확인하지 못했습니다.');
+    input.value = phone;
+    msg.className = 'msg ok';
+    msg.textContent = phone ? '저장됨 · 다음 수집부터 변경 시 이 번호로 알림톡 발송' : '저장됨 · 알림톡 중지, 현황 수집과 디스코드 알림은 계속됩니다.';
+  } catch (e){ msg.textContent = '저장 실패 · 다시 시도해 주세요.'; }
+  finally { button.disabled = false; input.disabled = false; }
+}
+
+/* 제공내역 · 방문가능 요일/시간대 저장 (2026-09-18 마케터 요청).
+
+   ⭐여기 친 글자가 **그대로** 광고주 화면 상단(방문 일정 바로 아래)에 나간다.
+     그래서 출처가 관리화면 하나다 — 노션 본문을 긁어오지 않는다(절대규칙 1·4).
+   ⭐저장 결과를 **서버가 돌려준 값으로 확인**한다(savePhone 과 같은 방식) —
+     'ok' 만 믿으면 컬럼이 없거나 RLS 에 막혀도 저장됐다고 말하게 된다.
+   ⛔빈칸으로 저장하면 null 을 넣는다. 광고주 화면은 그 줄을 아예 안 낸다
+     (빈 문자열을 넣으면 '제공내역' 라벨만 덩그러니 남는다). */
+async function saveGuide(id){
+  const offEl = $('g-offer-' + id), hrEl = $('g-hours-' + id);
+  const msg = $('g-msg-' + id), button = $('g-save-' + id);
+  if (button.disabled) return;
+  const patch = { offer: offEl.value.trim() || null,
+                  visit_hours: hrEl.value.trim() || null };
+  msg.className = 'msg'; msg.textContent = '저장 중…';
+  button.disabled = true;
+  try {
+    const { data, error } = await sb.from('xhs_clients').update(patch).eq('id', id)
+      .select('id,offer,visit_hours').single();
+    if (error) throw error;
+    if (!data || (data.offer ?? null) !== patch.offer
+              || (data.visit_hours ?? null) !== patch.visit_hours)
+      throw new Error('저장 결과를 확인하지 못했습니다.');
+    offEl.value = data.offer || ''; hrEl.value = data.visit_hours || '';
+    msg.className = 'msg ok';
+    msg.textContent = (patch.offer || patch.visit_hours)
+      ? '저장됨 · 광고주가 링크를 새로고침하면 바로 보입니다'
+      : '저장됨 · 두 칸이 비어 광고주 화면에는 안내가 표시되지 않습니다';
+    setTimeout(() => { msg.textContent = ''; msg.className = 'msg'; }, 5000);
+  } catch (e){
+    msg.className = 'msg';
+    msg.textContent = schemaHint(e.message) || ('저장 실패 · ' + (e.message || '다시 시도해 주세요.'));
+  } finally { button.disabled = false; }
+}
+
 async function boot(){
   const { data:{ session } } = await sb.auth.getSession();
   if (session){ $('login-card').hidden = true; $('app').hidden = false; loadAll(); }
@@ -269,7 +340,11 @@ function makeToken(){
 }
 /* 컬럼이 아직 없을 때(스키마 SQL 미실행) 사람이 읽을 수 있는 안내로 바꾼다 */
 function schemaHint(msg){
-  if (/rounds/.test(msg || ''))
+  // ⛔ 정규식에 단어경계 기호를 쓰지 않는다. 예전에 그 자리에 진짜 백스페이스 문자(0x08)가
+  //    박혀 있어 이 줄이 영영 매치되지 않았다 (2026-09-18 발견·수정).
+  if (/offer|visit_hours/.test(msg || ''))
+    return '제공내역 칸이 아직 DB에 없습니다 — supabase_추가_안내문구.sql 을 SQL Editor 에서 실행하세요.';
+  if (/rounds/.test(msg || ''))
     return '회차 칸이 아직 DB에 없습니다 — supabase_추가_회차.sql 을 SQL Editor 에서 실행하세요.';
   return /contract_count|contract_tiers/.test(msg || '')
     ? '계약 칸이 아직 DB에 없습니다 — supabase_추가_계약건수.sql 을 SQL Editor 에서 실행하세요.'
@@ -294,10 +369,13 @@ async function addClient(){
   const m = $('reg-msg'); m.className = 'msg';
   if (!name || !url){ m.textContent = '업체명과 노션 주소는 필수입니다.'; return; }
   if (!url.includes('notion')){ m.textContent = '노션 주소가 아닌 것 같습니다.'; return; }
+  let phone;
+  try { phone = normalizePhone($('f-phone').value); }
+  catch (e){ m.textContent = e.message; return; }
   m.textContent = '등록 중…';
 
   const { data: rows } = await sb.from('xhs_clients').select('slug');
-  const row = { name, notion_url: url, phone: $('f-phone').value.trim(),
+  const row = { name, notion_url: url, phone,
     slug: makeSlug(name, new Set((rows||[]).map(r => r.slug))),
     token: makeToken(), enabled: true };
   const cc = cnum($('f-count').value);
@@ -305,6 +383,11 @@ async function addClient(){
   const tiers = {};
   TIERS.forEach(([k]) => { const v = cnum($('f-' + k).value); if (v) tiers[k] = v; });
   if (Object.keys(tiers).length) row.contract_tiers = tiers;
+  // 안내 문구는 **적었을 때만** 실어 보낸다 — 빈 값을 보내면 supabase_추가_안내문구.sql 을
+  // 아직 안 돌린 프로젝트에서 등록 자체가 실패한다(칸이 없어서). 나중에 목록에서 채우면 된다.
+  const offer = $('f-offer').value.trim(), hours = $('f-hours').value.trim();
+  if (offer) row.offer = offer;
+  if (hours) row.visit_hours = hours;
 
   const { error } = await sb.from('xhs_clients').insert(row);
   if (error){
@@ -313,7 +396,8 @@ async function addClient(){
     return;
   }
   m.textContent = '';
-  ['f-name','f-url','f-phone','f-count','f-f1k','f-f10k'].forEach(id => $(id).value = '');
+  ['f-name','f-url','f-phone','f-count','f-f1k','f-f10k','f-offer','f-hours']
+    .forEach(id => $(id).value = '');
   $('reg-box').open = false; loadAll();
 }
 
@@ -497,7 +581,28 @@ async function loadAll(){
       ${real}
       <div class="meta">
         <div>노션 <a href="${esc(c.notion_url)}" target="_blank" rel="noopener">${esc(c.notion_url)}</a></div>
-        <div>담당자 ${esc(c.phone || '—')} · 등록 ${esc((c.created_at || '').slice(0, 10))}</div>
+        <div class="field">
+          <label for="g-offer-${c.id}">제공내역 <span class="hint">— 광고주 화면 위쪽에 그대로 표시됩니다</span></label>
+          <textarea id="g-offer-${c.id}" rows="2"
+            placeholder="예) 2인 식사권 (5만원 상당) · 음료 2잔 포함">${esc(c.offer || '')}</textarea>
+          <label for="g-hours-${c.id}" style="margin-top:9px">방문가능 요일 및 시간대</label>
+          <textarea id="g-hours-${c.id}" rows="2"
+            placeholder="예) 평일 14:00~17:00 / 주말·공휴일 방문 불가">${esc(c.visit_hours || '')}</textarea>
+          <div class="row" style="margin-top:8px">
+            <button class="sm" id="g-save-${c.id}" onclick="saveGuide(${c.id})">안내 문구 저장</button>
+            <span class="msg" id="g-msg-${c.id}" role="status"></span>
+          </div>
+          <span class="hint-line">두 칸 다 비우면 광고주 화면에 이 안내가 아예 안 나옵니다.
+            줄바꿈은 그대로 보입니다.</span>
+        </div>
+        <div class="field">
+          <label for="phone-${c.id}">알림톡 받을 휴대폰 번호</label>
+          <div class="row"><input id="phone-${c.id}" type="tel" inputmode="tel" value="${esc(c.phone || '')}" placeholder="010-1234-5678">
+            <button class="sm" id="phone-save-${c.id}" onclick="savePhone(${c.id})">번호 저장</button></div>
+          <span class="hint">번호 변경 후 저장하면 다음 수집부터 반영됩니다. 번호를 비우고 저장하면 알림톡만 중지됩니다.</span>
+          <span class="msg" id="phone-msg-${c.id}" role="status"></span>
+        </div>
+        <div>등록 ${esc((c.created_at || '').slice(0, 10))}</div>
         <div class="row">
           ${c.enabled
             ? `<button class="ghost sm" onclick="setEnabled(${c.id}, false)">감시 중지</button>`
