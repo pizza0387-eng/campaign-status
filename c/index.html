@@ -334,13 +334,15 @@ function rowsOfRound(rows, n){
    ⛔판정 규칙은 xhs_watch.visit_date / past_visit 과 **같아야 한다**
      (당일까지는 예정, 다음 날부터 지난 것). 갈라지면 뱃지와 배너가 다른 말을 한다. */
 function visitDate(visit, today){
-  const m = /^\s*(\d{1,2})[./](\d{1,2})\b/.exec(String(visit || ''));
+  // 피클리 줄은 '2026.8.8 15:00' 처럼 연도가 붙어 온다(xhs_watch.join_visit) — 그때는 그 해를 믿는다
+  const m = /^\s*(?:(\d{4})[./])?(\d{1,2})[./](\d{1,2})\b/.exec(String(visit || ''));
   if (!m) return null;
-  const mo = +m[1], da = +m[2];
+  const mo = +m[2], da = +m[3];
   if (mo < 1 || mo > 12 || da < 1 || da > 31) return null;
-  let d = new Date(today.getFullYear(), mo - 1, da);
+  let d = new Date(m[1] ? +m[1] : today.getFullYear(), mo - 1, da);
   if (d.getMonth() !== mo - 1) return null;               // 2.30 같은 없는 날짜
-  // 연도가 없으므로 올해로 보되, 반년 넘게 미래면 작년으로 (12월 방문을 1월에 볼 때)
+  if (m[1]) return d;
+  // 연도가 없으면 올해로 보되, 반년 넘게 미래면 작년으로 (12월 방문을 1월에 볼 때)
   if ((d - today) / 86400000 > 182) d = new Date(today.getFullYear() - 1, mo - 1, da);
   return d;
 }
@@ -380,7 +382,7 @@ function upcomingHtml(list, multi){
     + list.slice(0, 5).map(x => {
         const w = whenWord(x.gap);
         const day = (x.d.getMonth() + 1) + '/' + x.d.getDate() + '(' + DOW[x.d.getDay()] + ')';
-        const time = String(x.r.visit || '').replace(/^\s*\d{1,2}[./]\d{1,2}\s*\/?\s*/, '');
+        const time = String(x.r.visit || '').replace(/^\s*(?:\d{4}[./])?\d{1,2}[./]\d{1,2}\s*\/?\s*/, '');
         // ⭐회차가 둘이면 번호만으로는 표에서 못 찾는다 (1회차 No.2 와 2회차 No.2 가 둘 다 있다)
         const tag = (multi && x.r.round) ? x.r.round + '회차 ' : '';
         return '<li><b class="mono">' + esc(tag) + 'No.' + esc(x.r.no) + '</b> '
