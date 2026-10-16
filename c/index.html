@@ -515,7 +515,6 @@ function rowHtml(r){
     + '<td class="who-cell"><span class="idn' + (named ? ' mono' : '') + '">'
       + (named || '—') + '</span>' + note + '</td>'
     + cell('팔로워', '<span class="mono">' + esc(r.followers) + '</span>', !r.followers)
-    + cell('좋아요·저장', '<span class="mono">' + esc(r.reactions) + '</span>', !r.reactions)
     + cell('방문 일시', '<span class="mono">' + esc(r.visit) + '</span>', !r.visit)
     + cell('상태', '<span class="tag t-' + st + '">' + esc(LABEL[st] || st) + '</span>')
     + cell('리뷰', review, !review, 'act')
@@ -525,10 +524,10 @@ function rowHtml(r){
 function tableHtml(rows){
   return '<div class="scroll"><table><thead><tr>'
     + '<th class="c">No.</th><th>인플루언서</th><th class="c">팔로워</th>'
-    + '<th class="c">좋아요·저장</th><th class="c">방문 일시</th>'
+    + '<th class="c">방문 일시</th>'
     + '<th class="c">상태</th><th class="c">리뷰</th></tr></thead><tbody>'
     + (rows.map(rowHtml).join('')
-       || '<tr><td colspan="7" class="state">아직 등록된 체험단이 없습니다.</td></tr>')
+       || '<tr><td colspan="6" class="state">아직 등록된 체험단이 없습니다.</td></tr>')
     + '</tbody></table></div>';
 }
 
@@ -622,7 +621,7 @@ function render(d){
 
     <footer class="foot">
       마지막 변경 ${esc(d.last_change || '—')} · 이 페이지는 자동으로 갱신됩니다.<br>
-      좋아요·저장 수는 집계 시점에 따라 달라질 수 있습니다.
+      팔로워 수는 집계 시점에 따라 달라질 수 있습니다.
     </footer>`;
 }
 
