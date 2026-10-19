@@ -289,8 +289,9 @@ const STATES = [
 ];
 const LABEL = Object.fromEntries(STATES);
 
-/* 계약 구성 구간. xhs_watch.FOLLOWER_TIERS 와 같은 키·같은 순서를 쓴다. */
-const TIERS = [['f1k', '1천 이상'], ['f10k', '1만 이상']];
+/* 계약 구성 구간. xhs_watch.CONTRACT_TIERS 와 같은 키·같은 순서를 쓴다.
+   1천 미만 = 대표님 2026-10-19 「이제 1천미만도 섭외할꺼거든」 */
+const TIERS = [['u1k', '1천 미만'], ['f1k', '1천 이상'], ['f10k', '1만 이상']];
 
 function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
   .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }

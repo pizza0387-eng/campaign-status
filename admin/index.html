@@ -84,6 +84,7 @@ input:focus-visible,textarea:focus-visible{outline:2px solid var(--brand); outli
 textarea{resize:vertical; min-height:58px; line-height:1.5}
 .field{margin-bottom:12px}
 .fields2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+.fields3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px}
 
 button{font:inherit; font-weight:700; letter-spacing:-.01em; cursor:pointer;
   padding:9px 15px; border-radius:9px; border:1px solid transparent;
@@ -139,12 +140,12 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
 .deal{margin-top:12px; padding:11px 12px; background:var(--raise); border-radius:11px;
   display:flex; flex-direction:column; gap:7px}
 .rhead,.rrow{display:grid; gap:7px;
-  grid-template-columns:58px minmax(120px,1fr) 74px 62px 132px 58px 58px;
+  grid-template-columns:58px minmax(120px,1fr) 74px 62px 132px 62px 62px 62px;
   align-items:center}
 .rhead{font-size:11px; color:var(--ink-3); font-weight:600; padding:0 2px}
 .rrow .rn{font-size:12px; font-weight:700; color:var(--ink-2); white-space:nowrap}
 .deal input{padding:6px 8px; background:var(--surface); width:100%}
-.deal .in-start,.deal .in-count,.deal .in-f1k,.deal .in-f10k{text-align:center}
+.deal .in-start,.deal .in-count,.deal .in-u1k,.deal .in-f1k,.deal .in-f10k{text-align:center}
 .deal .in-url{font-size:12px}
 /* 안내 두 칸 — 회차 줄의 둘째 줄로 전폭 배치. 7칸 가로 grid 를 건드리지 않는다
    (칸 너비가 58~132px 고정이라 긴 글 입력칸을 끼우면 전부 뭉개진다). */
@@ -170,14 +171,17 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
 
 @media (max-width:600px){
   .wrap{padding:20px 12px 60px}
-  .fields2{grid-template-columns:1fr}
+  .fields2,.fields3{grid-template-columns:1fr}
   .c-head{align-items:flex-start; flex-direction:column}
-  /* 좁은 화면에선 회차 표를 세로로 편다 — 7칸이 가로로 들어가지 않는다 */
+  .rrow .rguide{grid-template-columns:1fr}
+}
+/* 회차 표는 800px 아래에서 세로로 편다 — 8칸 가로 최소 681px + 바깥 여백 94px = 775px.
+   600px 기준이던 7칸 때는 들어갔지만 8칸은 720px 화면에서 마지막 칸이 잘린다(코덱스 10/19 감사 🔴). */
+@media (max-width:800px){
   .rhead{display:none}
   .rrow{grid-template-columns:1fr 1fr; gap:6px; padding:9px; background:var(--surface);
     border-radius:9px}
   .rrow .rn,.rrow .in-url{grid-column:1/-1}
-  .rrow .rguide{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -214,7 +218,9 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
               <input id="f-phone" type="tel" inputmode="tel" placeholder="010-1234-5678">
               <span class="hint">번호를 넣으면 변경 감지 시 자동 알림톡 발송 · 비워 두면 알림톡 중지</span></div>
           </div>
-          <div class="fields2">
+          <div class="fields3">
+            <div class="field"><label for="f-u1k">계약 구성 · 1천 미만 <span class="hint">(명)</span></label>
+              <input id="f-u1k" type="number" min="0" max="999" placeholder="예: 5"></div>
             <div class="field"><label for="f-f1k">계약 구성 · 1천 이상 <span class="hint">(명)</span></label>
               <input id="f-f1k" type="number" min="0" max="999" placeholder="예: 10"></div>
             <div class="field"><label for="f-f10k">계약 구성 · 1만 이상 <span class="hint">(명)</span></label>
@@ -259,7 +265,22 @@ function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;
 /* 양의 정수만 유효. 파이썬 contract_num 과 같은 규칙 */
 function cnum(v){ const n = parseInt(String(v ?? '').trim(), 10); return n > 0 ? n : null; }
 
-const TIERS = [['f1k','1천 이상'], ['f10k','1만 이상']];
+/* 계약 구성 칸 — xhs_watch.CONTRACT_TIERS · 광고주 화면 TIERS 와 같은 키·같은 순서.
+   1천 미만 = 대표님 2026-10-19 「이제 1천미만도 섭외할꺼거든」 */
+const TIERS = [['u1k','1천 미만'], ['f1k','1천 이상'], ['f10k','1만 이상']];
+
+/* 실제 섭외 인원 (내부 참고). 수집기 summarize 는 누적 구간(1천 이상·1만 이상)만 센다 —
+   1천 미만 = 팔로워를 읽은 사람(f_known) − 1천 이상. 팔로워를 못 읽은 사람은 어디에도 안 든다. */
+/* 실제 섭외 줄에 낼 칸 — 1천 미만은 회차 계약에 1천 미만이 있는 업체만.
+   기존 업체의 관리화면 글자를 그대로 두기 위해서다(코덱스 10/19 감사 🔴 — '1천 미만 0명' 이 새로 붙었다). */
+function realTiers(rs){
+  const hasU1k = (rs || []).some(r => cnum((r.tiers || {}).u1k));
+  return TIERS.filter(([k]) => k !== 'u1k' || hasU1k);
+}
+function realCount(sum, k){
+  if (k === 'u1k') return Math.max(0, (sum.f_known || 0) - (sum.f1k || 0));
+  return sum[k] ?? 0;
+}
 
 function normalizePhone(value){
   const raw = String(value || '').trim();
@@ -417,7 +438,7 @@ async function addClient(){
     return;
   }
   m.textContent = '';
-  ['f-name','f-url','f-phone','f-count','f-f1k','f-f10k','f-offer','f-hours']
+  ['f-name','f-url','f-phone','f-count','f-u1k','f-f1k','f-f10k','f-offer','f-hours']
     .forEach(id => $(id).value = '');
   $('reg-box').open = false; loadAll();
 }
@@ -501,8 +522,9 @@ function roundRowHtml(id, r){
     ${inp('count', r.contract, '계약')}
     <input class="in-end" type="date" value="${esc(r.end || '')}"
            onchange="saveRounds(${id}, this)">
-    ${inp('f1k', r.tiers.f1k, '1천')}
-    ${inp('f10k', r.tiers.f10k, '1만')}
+    ${inp('u1k', r.tiers.u1k, '1천 미만')}
+    ${inp('f1k', r.tiers.f1k, '1천 이상')}
+    ${inp('f10k', r.tiers.f10k, '1만 이상')}
     <div class="rguide">
       <div><label for="r-off-${id}-${r.n}">${r.n}회차 제공내역</label>
         <textarea class="in-offer" id="r-off-${id}-${r.n}" rows="2"
@@ -587,8 +609,8 @@ async function loadAll(){
       ? `확보 <b>${tot}</b>명 · <span class="${gap ? 'gap' : ''}">남은 자리 <b>${gap}</b>건</span>` : '';
     // 실제 섭외 팔로워 구성 — 계약값과 다를 수 있어서 여기(내부)에만 띄운다.
     const real = sum.f_known
-      ? `<div class="real">실제 섭외 · ${TIERS.map(([k, l]) =>
-          `${l} <b>${sum[k] ?? 0}</b>명`).join(' · ')}
+      ? `<div class="real">실제 섭외 · ${realTiers(rs).map(([k, l]) =>
+          `${l} <b>${realCount(sum, k)}</b>명`).join(' · ')}
          <span style="color:var(--ink-3)">— 광고주 화면에는 위 계약값만 나갑니다</span></div>` : '';
     const link = pageUrl(c.token);
 
@@ -607,7 +629,7 @@ async function loadAll(){
       ${stats}
       <div class="deal">
         <div class="rhead"><span class="rn"></span><span>노션 주소</span><span>시작 No.</span>
-          <span>계약</span><span>종료일</span><span>1천</span><span>1만</span></div>
+          <span>계약</span><span>종료일</span><span>1천 미만</span><span>1천 이상</span><span>1만 이상</span></div>
         <div class="rounds" id="rounds-${c.id}">
           ${rs.map(r => roundRowHtml(c.id, r)).join('')}
         </div>
