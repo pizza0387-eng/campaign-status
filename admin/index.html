@@ -209,8 +209,8 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
         <div class="reg-body">
           <div class="field"><label for="f-name">업체명 <span class="hint">— 광고주 화면에 그대로 보입니다</span></label>
             <input id="f-name" placeholder="예: 업체명"></div>
-          <div class="field"><label for="f-url">노션 페이지 주소 <span class="hint">— 외주사 페이지 주소창을 복사</span></label>
-            <input id="f-url" placeholder="https://....notion.site/...."></div>
+          <div class="field"><label for="f-url">노션 페이지 주소 <span class="hint">— 노션 링크를 복사한 그대로 붙여 넣기</span></label>
+            <input id="f-url" placeholder="https://....notion.site/.... 또는 노션 링크 복사 그대로"></div>
           <div class="fields2">
             <div class="field"><label for="f-count">계약 건수 <span class="hint">— 총 몇 명</span></label>
               <input id="f-count" type="number" min="1" max="999" placeholder="예: 15"></div>
@@ -406,11 +406,53 @@ function roundsOf(c){
             offer: '', visit_hours: '' }];
 }
 
+/* 노션 「링크 복사」·주소창 주소를 수집기가 읽는 공개 주소로 바꾼다
+   (2026-10-20 대표님 「그냥 복사해서 넣으면안되나? 왜이리 복잡한거야?」
+    · 「피클리 우리 노션주소랑, 외주노션주소 둘다 인식되게해야하는데」).
+   편집 주소(app.notion.com · notion.so · notion.com)는 로그인해야 열려서 수집기가 못 읽는다(10/16 실측 2/2 실패).
+   주소 끝의 페이지 번호 32자리를 떼어 **그 페이지가 사는 노션의** 공개 주소 앞부분을 붙인다.
+   ⭐ 어느 노션인지 = 페이지 번호 5~12번째 글자(10/20 실측 — 우리 노션 3장 전부 439bf994 · 외주사 노션 6장 전부 460c72ba).
+     ⛔ 다른 노션의 앞부분을 붙이면 제목만 뜨고 표는 「페이지 찾지 못함」(10/20 빠리가옥 실측 · 수집기 「표를 찾지 못함」)
+       → 표에 없는 노션이면 저장하지 않고 공개 주소(…notion.site)를 받는다.
+   ⚠ 노션은 한글 제목을 주소에서 빼고 숫자만 남긴다 → 「○○ · 1회차」 = `1-` + 32자리(34자).
+     번호는 **맨 앞이나 `-` 바로 뒤의 끝 32자리**(또는 8-4-4-4-12 하이픈 꼴)만 잡는다.
+     ⛔ 하이픈을 먼저 다 지우면 잘린 주소 `1-`+31자리가 `1` 과 붙어 엉뚱한 32자리가 된다(시험이 잡음).
+   ⛔ notion.site(이미 공개 주소)는 건드리지 않는다.
+   돌려주는 값: 바꾼 주소 · 그대로 둘 주소. 편집 주소인데 번호를 못 찾거나 처음 보는 노션이면 오류를 던진다 */
+const NOTION_SITES = {
+  '439bf994': ['https://wandering-bagpipe-d2f.notion.site/', '우리 노션(피클리)'],
+  '460c72ba': ['https://absorbing-mayonnaise-7eb.notion.site/', '외주사 노션'],
+};
+const NOTION_EDIT_HOSTS = ['app.notion.com', 'notion.com', 'www.notion.com', 'notion.so', 'www.notion.so'];
+const NOTION_ID_MISSING = '노션 주소 끝의 페이지 번호를 못 찾았습니다 — 노션 오른쪽 위 링크 단추로 다시 복사해 주세요.';
+const NOTION_SITE_UNKNOWN = '우리 노션·외주사 노션이 아닌 곳의 링크입니다 — 그 노션의 공개 주소(…notion.site/…)를 받아 넣어 주세요.';
+function publicNotionUrl(raw){
+  const s = String(raw ?? '').trim();
+  let u; try { u = new URL(/^(app\.|www\.)?notion\.(so|com)\//i.test(s) ? 'https://' + s : s); } catch (e) { return s; }
+  if (!NOTION_EDIT_HOSTS.includes(u.hostname.toLowerCase())) return s;
+  // 표 안 페이지를 옆에 띄운 채 주소창을 복사하면 그 페이지 번호가 ?p= 에 있다
+  const peek = (u.searchParams.get('p') || '').replace(/-/g, '');
+  const last = u.pathname.split('/').filter(Boolean).pop() || '';
+  const m = last.match(/(?:^|-)([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+  const id = (/^[0-9a-f]{32}$/i.test(peek) ? peek : m ? m[1].replace(/-/g, '') : '').toLowerCase();
+  if (!id) throw new Error(NOTION_ID_MISSING);
+  const site = NOTION_SITES[id.slice(4, 12)];
+  if (!site) throw new Error(NOTION_SITE_UNKNOWN);
+  return site[0] + id;
+}
+// 「…로 바꿔 저장」 안내에 쓰는 노션 이름
+function notionSiteName(url){
+  return (Object.values(NOTION_SITES).find(([b]) => url.startsWith(b)) || [, '노션'])[1];
+}
+
 async function addClient(){
-  const name = $('f-name').value.trim(), url = $('f-url').value.trim();
+  const name = $('f-name').value.trim();
+  let url = $('f-url').value.trim();
   const m = $('reg-msg'); m.className = 'msg';
   if (!name || !url){ m.textContent = '업체명과 노션 주소는 필수입니다.'; return; }
   if (!url.includes('notion')){ m.textContent = '노션 주소가 아닌 것 같습니다.'; return; }
+  const rawUrl = url;
+  try { url = publicNotionUrl(url); } catch (e){ m.textContent = e.message; return; }
   let phone;
   try { phone = normalizePhone($('f-phone').value); }
   catch (e){ m.textContent = e.message; return; }
@@ -437,10 +479,14 @@ async function addClient(){
       : (schemaHint(error.message) || '실패: ' + error.message);
     return;
   }
-  m.textContent = '';
   ['f-name','f-url','f-phone','f-count','f-u1k','f-f1k','f-f10k','f-offer','f-hours']
     .forEach(id => $(id).value = '');
-  $('reg-box').open = false; loadAll();
+  if (url === rawUrl){ m.textContent = ''; $('reg-box').open = false; loadAll(); return; }
+  // 주소를 바꿨으면 어느 노션 공개 주소로 바꿨는지 보여 준 뒤 닫는다
+  m.className = 'msg ok';
+  m.textContent = '등록됨 · ' + notionSiteName(url) + ' 공개 주소로 바꿔 저장했습니다\n' + url;
+  loadAll();
+  setTimeout(() => { m.textContent = ''; m.className = 'msg'; $('reg-box').open = false; }, 6000);
 }
 
 /* 회차 저장 — 목록을 다시 그리지 않는다. 입력 중 다시 그리면 포커스가 날아가 못 쓴다.
@@ -451,12 +497,18 @@ async function addClient(){
 async function saveRounds(id, el){
   const msg = $('deal-msg-' + id);
   const box = $('rounds-' + id);
+  let badUrl = '';
   const rows = [...box.querySelectorAll('.rrow')].map((r, i) => {
     const g = s => r.querySelector('.in-' + s);
     const tiers = {};
     TIERS.forEach(([k]) => { const v = cnum(g(k).value); if (v) tiers[k] = v; });
+    // 편집 주소를 붙여 넣으면 공개 주소로 바꿔 저장하고, 칸에도 바뀐 주소를 보여 준다
+    const rawUrl = g('url').value.trim();
+    let url = rawUrl;
+    try { url = publicNotionUrl(rawUrl); if (url !== rawUrl) g('url').value = url; }
+    catch (e){ badUrl = badUrl || (cnum(g('n').value) || i + 1) + '회차 줄 · ' + e.message; }
     const row = { n: cnum(g('n').value) || i + 1,
-                  notion_url: g('url').value.trim(),
+                  notion_url: url,
                   start_no: cnum(g('start').value) || 1,
                   contract: cnum(g('count').value),
                   tiers, end: g('end').value.trim() };
@@ -469,6 +521,8 @@ async function saveRounds(id, el){
     return row;
   }).filter(r => r.notion_url);
   rows.sort((a, b) => a.n - b.n);
+  // ⛔ 번호 없는·처음 보는 노션 편집 주소는 저장하지 않는다 — 저장되면 매 회차 「수집 실패」만 쌓인다
+  if (badUrl){ msg.className = 'msg'; msg.textContent = badUrl; return; }
 
   const cur = rows[rows.length - 1] || {};
   msg.className = 'msg'; msg.textContent = '저장 중…';
