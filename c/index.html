@@ -124,6 +124,19 @@ body{
 .guide dd{font-size:14px; line-height:1.55; color:var(--ink); overflow-wrap:anywhere}
 @media (max-width:540px){ .guide>div{grid-template-columns:1fr; gap:2px} }
 
+/* ── 리뷰 링크 안내 ── 2026-10-21 대표님 요청. 리뷰 링크가 하나라도 있을 때만 나온다(linkNoteHtml).
+   ⭐경고가 아니라 안내라 상태색·브랜드색을 안 쓴다(레드 = 브랜드이자 경고로 읽힌다 — 맨 위 토큰 주석).
+     데이터 카드(흰 바탕·그림자)와 갈리게 한 톤 낮은 바탕(--raise)에 그림자 없이 둔다. */
+.lnote{background:var(--raise); border:1px solid var(--line); border-radius:var(--radius);
+  padding:13px 18px; display:flex; flex-direction:column; gap:7px}
+.lnote-h{font-size:13px; font-weight:700; letter-spacing:-.01em; color:var(--ink)}
+.lnote-l{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px}
+.lnote-l li{position:relative; padding-left:13px; font-size:13px; line-height:1.6;
+  color:var(--ink-2); word-break:keep-all; overflow-wrap:anywhere}   /* 문장이라 낱말 중간(「있|습니다」)에서 안 끊는다 */
+.lnote-l li::before{content:""; position:absolute; left:3px; top:.72em; width:4px; height:4px;
+  border-radius:50%; background:var(--ink-3)}
+.lnote-l b{color:var(--ink); font-weight:700}
+
 /* ── 회차 머리 · 기간 배지 ── */
 .rnd{display:flex; flex-wrap:wrap; align-items:center; gap:10px;
   font-size:13px; letter-spacing:-.01em}
@@ -416,6 +429,27 @@ function guideHtml(offer, hours){
   return items.length ? '<dl class="guide">' + items.join('') + '</dl>' : '';
 }
 
+/* 리뷰 링크 안내 — 2026-10-21 대표님 「이내용 우리 광고주가 보는 샤오홍슈 url에도 들어가있으면
+   좋지않을까? / 정리해서」. 「리뷰 보기」는 샤오홍슈 공유 링크라 일정 기간이 지나면 안 열릴 수 있다
+   → 리뷰가 올라오면 일찍 확인하시라는 안내.
+   ⛔「게시물은 그대로 남아 있습니다」처럼 못 박지 않는다 — 인플루언서가 글을 지웠으면 틀린 안내가 된다
+     (수집기는 게시물이 살아 있는지 확인하지 않는다 · 10/21 감사 🟡 → 대표님 「추천대로 실행」).
+   ⭐리뷰 링크가 하나라도 있을 때만 낸다 — 그 전엔 광고주가 할 일이 없는 안내다.
+   ⛔기간 숫자(「45~90일」 등)를 쓰지 않는다 — 샤오홍슈 공식 근거를 못 찾았다(10/21 조사).
+     숫자를 박으면 그보다 일찍 끊긴 광고주에게 틀린 안내가 된다.
+   ⭐고정 문구라 escape 할 값이 없다 — 사람·노션 값을 섞게 되면 esc() 를 거칠 것. */
+const LINK_NOTE = [
+  '<b>리뷰 보기</b> 버튼은 샤오홍슈 공유 링크입니다. 플랫폼 특성상 일정 기간이 지나면 열리지 않을 수 있습니다.',
+  '링크가 열리지 않는다고 해서 리뷰 게시물이 지워졌다는 뜻은 아닙니다.',
+  '리뷰가 올라오면 되도록 일찍 확인해 주세요. 링크가 열리지 않으면 담당자에게 말씀해 주세요.',
+];
+
+function linkNoteHtml(rows){
+  if (!(rows || []).some(r => r && r.xhs)) return '';
+  return '<aside class="lnote"><div class="lnote-h">샤오홍슈 리뷰 링크 안내</div><ul class="lnote-l">'
+    + LINK_NOTE.map(t => '<li>' + t + '</li>').join('') + '</ul></aside>';
+}
+
 /* 기간 배지 — 종료일이 없으면 아예 안 나온다(추측해서 채우지 않는다). */
 function periodHtml(end, today){
   if (!end) return '';
@@ -620,6 +654,7 @@ function render(d){
     </header>
 
     ${upcomingHtml(upcoming(rows, today), multi)}
+    ${linkNoteHtml(rows)}
     ${roundsHtml(rounds, rows, s, today)}
 
     <footer class="foot">
