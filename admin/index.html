@@ -157,6 +157,21 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
 .rfoot{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin-top:3px}
 .rfoot .tip{font-size:11.5px; color:var(--ink-3); line-height:1.55}
 .rfoot .tip b{color:var(--ink-2)}
+/* 「＋ 노션 하나 더」 — 회차 줄의 둘째 줄(전폭). 8칸 가로 grid 에는 끼우지 않는다(8차 함정:
+   칸 너비가 고정이라 주소 칸을 더 끼우면 뭉개진다). 같은 회차를 노션 두 곳에서 함께 모집할 때만 쓴다. */
+.rrow .rwarn{grid-column:1/-1; font-size:12px; font-weight:600; line-height:1.5; color:var(--warn);
+  background:var(--warn-bg); padding:6px 9px; border-radius:8px}
+.rrow .rextra{grid-column:1/-1; display:flex; flex-direction:column; gap:6px}
+.rextra .xrows{display:flex; flex-direction:column; gap:6px}
+.rextra .xrow{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px;
+  padding:7px 9px; background:var(--surface); border-radius:8px}
+.rextra .xrow .in-xurl{flex:1 1 240px; width:auto; min-width:0; font-size:12px}
+.rextra .xf{display:inline-flex; align-items:center; gap:5px; font-size:11px;
+  color:var(--ink-3); font-weight:600; white-space:nowrap}
+.rextra .xf input{width:84px; text-align:center}
+.rextra .xname{font-size:11.5px; color:var(--ink-2); font-weight:600}
+.rextra .xtool{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px}
+.rextra .xshare{font-size:12px; color:var(--ink-2); font-weight:600}
 .deal .out{font-size:12.5px; color:var(--ink-2)}
 .deal .out b{color:var(--ink); font-weight:700}
 .deal .out.gap b{color:var(--warn)}
@@ -182,6 +197,7 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
   .rrow{grid-template-columns:1fr 1fr; gap:6px; padding:9px; background:var(--surface);
     border-radius:9px}
   .rrow .rn,.rrow .in-url{grid-column:1/-1}
+  .rextra .xrow{background:var(--raise)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -396,14 +412,40 @@ function roundsOf(c){
   const g = v => (typeof v === 'string' ? v.trim() : '');
   const rs = Array.isArray(c.rounds) ? c.rounds.filter(r => r && typeof r === 'object') : [];
   if (rs.length)
-    return rs.map((r, i) => ({ n: cnum(r.n) || i + 1, notion_url: r.notion_url || c.notion_url || '',
-                               start_no: cnum(r.start_no) || 1, contract: cnum(r.contract),
-                               tiers: r.tiers || {}, end: r.end || '',
-                               offer: g(r.offer), visit_hours: g(r.visit_hours) }))
-             .sort((a, b) => a.n - b.n);
-  return [{ n: 1, notion_url: c.notion_url || '', start_no: 1,
+    return rs.map((r, i) => {
+      const nu = parseNotion(r.notion_url);          // 문자열이든 목록이든 기본 노션 주소 하나로 읽는다
+      return { n: cnum(r.n) || i + 1, notion_url: nu.broken ? '' : (nu.url || c.notion_url || ''),
+               extras: nu.extras, base0: nu.base0, broken: !!nu.broken, saved: true,
+               start_no: cnum(r.start_no) || 1, contract: cnum(r.contract),
+               tiers: r.tiers || {}, end: r.end || '',
+               offer: g(r.offer), visit_hours: g(r.visit_hours) };
+    }).sort((a, b) => a.n - b.n);
+  return [{ n: 1, notion_url: c.notion_url || '', extras: [], base0: null, start_no: 1,
             contract: cnum(c.contract_count), tiers: c.contract_tiers || {}, end: '',
             offer: '', visit_hours: '' }];
+}
+
+/* 회차의 노션 칸 읽기 — notion_url 은 문자열(노션 하나) 또는 목록(노션 여러 개)이다
+   (2026-10-20 대표님 「같은회차임」 — 같은 회차를 피클리·외주사 노션이 동시에 모집).
+   목록 = [{url, start_no, contract}, …] · [0] = 기본 노션(회차 줄의 주소 칸) · 나머지 = 추가 노션.
+   ⛔ 회차에 새 칸 이름(sources 등)을 만들지 않는다 — 광고주 RPC 가 notion_url 칸만 통째로 빼므로
+      노션 정보는 전부 이 칸 안에만 둔다(새 칸은 광고주에게 그대로 나간다 · 절대규칙 1).
+   돌려주는 값: url = 기본 노션 주소(문자열) · extras = 추가 노션 목록 · base0 = 기본 노션 계약
+   (손으로 넣은 값이 있으면 저장할 때 그대로 지킨다 — 비어 있으면 수집기가 회차 계약 − 추가 합으로 본다). */
+function parseNotion(v){
+  if (!Array.isArray(v)){
+    const str = typeof v === 'string' ? v : '';
+    // 옛 화면이 목록 회차를 읽어 저장하면 글자 그대로 "[object Object],[object Object]" 가 박힌다(감사 🔴3).
+    // 그 글자는 주소가 아니다 → 비워 보여 주고 broken 표시를 달아 경고·저장 막기에 쓴다
+    if (str.includes('[object Object]')) return { url: '', extras: [], base0: null, broken: true };
+    return { url: str, extras: [], base0: null };
+  }
+  const items = v.map(x => (typeof x === 'string' ? { url: x }
+                            : (x && typeof x === 'object' && typeof x.url === 'string') ? x : null))
+    .filter(x => x && x.url.trim())
+    .map(x => ({ url: x.url.trim(), start_no: cnum(x.start_no) || 1, contract: cnum(x.contract) }));
+  return { url: items.length ? items[0].url : '', extras: items.slice(1),
+           base0: items.length ? items[0].contract : null };
 }
 
 /* 노션 「링크 복사」·주소창 주소를 수집기가 읽는 공개 주소로 바꾼다
@@ -426,15 +468,19 @@ const NOTION_SITES = {
 const NOTION_EDIT_HOSTS = ['app.notion.com', 'notion.com', 'www.notion.com', 'notion.so', 'www.notion.so'];
 const NOTION_ID_MISSING = '노션 주소 끝의 페이지 번호를 못 찾았습니다 — 노션 오른쪽 위 링크 단추로 다시 복사해 주세요.';
 const NOTION_SITE_UNKNOWN = '우리 노션·외주사 노션이 아닌 곳의 링크입니다 — 그 노션의 공개 주소(…notion.site/…)를 받아 넣어 주세요.';
+// 주소(URL 객체)에서 페이지 번호 32자리 — ?p= 가 있으면 그것이 우선(표 안 페이지를 옆에 띄운 채 복사한 주소),
+// 없으면 주소 끝의 32자리(맨 앞이나 `-` 바로 뒤만). 못 찾으면 ''.
+function pageIdOf(u){
+  const peek = (u.searchParams.get('p') || '').replace(/-/g, '');
+  const last = u.pathname.split('/').filter(Boolean).pop() || '';
+  const m = last.match(/(?:^|-)([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+  return (/^[0-9a-f]{32}$/i.test(peek) ? peek : m ? m[1].replace(/-/g, '') : '').toLowerCase();
+}
 function publicNotionUrl(raw){
   const s = String(raw ?? '').trim();
   let u; try { u = new URL(/^(app\.|www\.)?notion\.(so|com)\//i.test(s) ? 'https://' + s : s); } catch (e) { return s; }
   if (!NOTION_EDIT_HOSTS.includes(u.hostname.toLowerCase())) return s;
-  // 표 안 페이지를 옆에 띄운 채 주소창을 복사하면 그 페이지 번호가 ?p= 에 있다
-  const peek = (u.searchParams.get('p') || '').replace(/-/g, '');
-  const last = u.pathname.split('/').filter(Boolean).pop() || '';
-  const m = last.match(/(?:^|-)([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
-  const id = (/^[0-9a-f]{32}$/i.test(peek) ? peek : m ? m[1].replace(/-/g, '') : '').toLowerCase();
+  const id = pageIdOf(u);
   if (!id) throw new Error(NOTION_ID_MISSING);
   const site = NOTION_SITES[id.slice(4, 12)];
   if (!site) throw new Error(NOTION_SITE_UNKNOWN);
@@ -443,6 +489,34 @@ function publicNotionUrl(raw){
 // 「…로 바꿔 저장」 안내에 쓰는 노션 이름
 function notionSiteName(url){
   return (Object.values(NOTION_SITES).find(([b]) => url.startsWith(b)) || [, '노션'])[1];
+}
+// 같은 노션 페이지인지 가르는 열쇠 = 수집기와 같은 규칙의 페이지 번호(?p= 우선 · 끝 32자리는 맨 앞이나 `-` 바로 뒤만).
+// 직접 주소와 `?p=같은번호` 주소는 같은 페이지다. 번호를 못 찾는 주소만 호스트+경로로 가른다.
+function notionKey(u){
+  let p; try { p = new URL(u); } catch (e) { return String(u).trim().toLowerCase(); }
+  const id = pageIdOf(p);
+  return id || (p.hostname.toLowerCase() + p.pathname.replace(/\/+$/, '').toLowerCase());
+}
+// 「기본 노션 몫 N명」 = 회차 계약 − 추가 노션 계약 합. 회차 계약이 비었거나 추가 노션이 없으면 안 보인다
+function shareText(contract, xs){
+  const c = cnum(contract);
+  if (!c || !xs.length) return '';
+  const left = c - xs.reduce((a, x) => a + (cnum(x.contract) || 0), 0);
+  return left < 0 ? '' : '기본 노션 몫 ' + left + '명';
+}
+// 추가 노션 한 줄 = 노션 주소 · 시작 No.(비우면 1) · 이 노션 계약 수(선택) · 어느 노션인지 이름 · [빼기]
+function extraRowHtml(id, x){
+  const name = x.url ? notionSiteName(x.url) : '';
+  return `<div class="xrow">
+      <input class="in-xurl" type="url" value="${esc(x.url || '')}"
+             placeholder="추가 노션 주소 (복사한 링크 그대로)" onchange="saveRounds(${id}, this)">
+      <label class="xf">시작 No.<input class="in-xstart mono" type="number" value="${esc(x.start_no ?? '')}"
+             placeholder="1" onchange="saveRounds(${id}, this)"></label>
+      <label class="xf">이 노션 계약 수<input class="in-xcount mono" type="number" value="${esc(x.contract ?? '')}"
+             placeholder="선택" onchange="saveRounds(${id}, this)"></label>
+      <span class="xname">${esc(name)}</span>
+      <button type="button" class="ghost sm" onclick="removeExtra(${id}, this)">빼기</button>
+    </div>`;
 }
 
 async function addClient(){
@@ -497,20 +571,72 @@ async function addClient(){
 async function saveRounds(id, el){
   const msg = $('deal-msg-' + id);
   const box = $('rounds-' + id);
-  let badUrl = '';
+  let bad = '';          // 저장을 막는 첫 문제 — 몇 회차 어느 줄인지 같이 적는다
+  const origs = [];      // 저장에 성공하면 「불러온 기준」을 이 값으로 새로 잡는다(자리 바꿈 막기용)
   const rows = [...box.querySelectorAll('.rrow')].map((r, i) => {
     const g = s => r.querySelector('.in-' + s);
+    const n = cnum(g('n').value) || i + 1;
     const tiers = {};
     TIERS.forEach(([k]) => { const v = cnum(g(k).value); if (v) tiers[k] = v; });
     // 편집 주소를 붙여 넣으면 공개 주소로 바꿔 저장하고, 칸에도 바뀐 주소를 보여 준다
     const rawUrl = g('url').value.trim();
     let url = rawUrl;
+    // 깨진 회차(옛 화면이 [object Object] 로 덮은 것)는 주소를 다시 넣기 전엔 저장하지 않는다 — 글자를 그대로 저장하지도, 줄을 조용히 지우지도 않는다
+    const brkEl = g('broken'), wasBroken = !!(brkEl && brkEl.value);
+    if (rawUrl.includes('[object Object]') || (wasBroken && !rawUrl))
+      bad = bad || n + '회차 줄 · 이 회차 노션 주소가 깨졌어요 — 노션 주소를 다시 넣어 주세요.';
     try { url = publicNotionUrl(rawUrl); if (url !== rawUrl) g('url').value = url; }
-    catch (e){ badUrl = badUrl || (cnum(g('n').value) || i + 1) + '회차 줄 · ' + e.message; }
-    const row = { n: cnum(g('n').value) || i + 1,
-                  notion_url: url,
-                  start_no: cnum(g('start').value) || 1,
-                  contract: cnum(g('count').value),
+    catch (e){ bad = bad || n + '회차 줄 · ' + e.message; }
+    const start = cnum(g('start').value) || 1;
+    const contract = cnum(g('count').value);
+
+    // 「＋ 노션 하나 더」 줄들 — 주소를 안 적은 줄은 없는 것으로 본다. 추가 주소도 똑같이 공개 주소로 바꾼다
+    const xs = [];
+    for (const xr of (r.querySelectorAll ? [...r.querySelectorAll('.xrow')] : [])){
+      const xg = s => xr.querySelector('.in-' + s);
+      const xraw = xg('xurl').value.trim();
+      if (!xraw) continue;
+      let xu = xraw, label = '';
+      try { xu = publicNotionUrl(xraw); if (xu !== xraw) xg('xurl').value = xu; label = notionSiteName(xu); }
+      catch (e){ bad = bad || n + '회차 추가 노션 · ' + e.message; }
+      const nm = xr.querySelector('.xname'); if (nm) nm.textContent = label;   // 어느 노션인지 자동 표시
+      xs.push({ url: xu, start_no: cnum(xg('xstart').value) || 1, contract: cnum(xg('xcount').value) });
+    }
+    const sh = r.querySelector('.xshare'); if (sh) sh.textContent = shareText(contract, xs);
+    if (xs.length){
+      // ⛔ 같은 주소가 두 번(기본 + 추가 포함)이면 같은 사람이 두 번 세어진다
+      const seen = new Set();
+      for (const u of [url, ...xs.map(x => x.url)].filter(Boolean)){
+        const k = notionKey(u);
+        if (seen.has(k)){ bad = bad || n + '회차 · 같은 노션 주소가 두 번 들어 있습니다 — 하나만 남겨 주세요.'; break; }
+        seen.add(k);
+      }
+      if (!url) bad = bad || n + '회차 줄 · 기본 노션 주소가 비어 있습니다 — 위 칸에 먼저 넣어 주세요.';
+      const sum = xs.reduce((a, x) => a + (x.contract || 0), 0);
+      if (contract && sum > contract)
+        bad = bad || n + '회차 · 추가 노션 계약 합(' + sum + '명)이 회차 계약(' + contract + '명)보다 큽니다 — 숫자를 확인해 주세요.';
+    }
+    // (같은 주소 두 번·계약 합 검사 뒤에 본다 — 그쪽 안내가 더 정확하다)
+    // ⛔ 불러온 그대로의 기본 노션이 추가 줄로 내려가거나, 추가 노션이 기본 칸으로 올라오면 저장하지 않는다.
+    //   수집기 열쇠가 바뀌어 같은 사람이 「신규」·「일정 변경」 헛알림으로 나간다(감사 🔴2). 새 회차 줄은 불러온 값이 없어 해당 없다
+    const obEl = g('obase'), oxEl = g('oextras');
+    const ob = (obEl && obEl.value) || '';
+    const oxs = ((oxEl && oxEl.value) || '').split(',').filter(Boolean);
+    const curBase = url ? notionKey(url) : '';
+    const curXs = xs.map(x => notionKey(x.url));
+    if (ob && (curXs.includes(ob) || (curBase && oxs.includes(curBase))))
+      bad = bad || n + '회차 · 첫 줄(기본) 노션은 추가 노션과 자리를 바꿀 수 없어요. 바꾸려면 대표님께 여쭤 주세요.';
+    origs.push({ r, wasBroken, base: curBase, xs: curXs });
+    // ⭐추가 노션이 없으면 **지금과 똑같은 문자열**로 저장한다(기존 업체 저장 결과가 한 글자도 안 바뀐다).
+    //   있으면 목록 — [0] = 기본 노션(시작 번호는 회차 줄과 같게), 나머지 = 추가 노션
+    const bc = g('base0');
+    const notion = xs.length
+      ? [{ url, start_no: start, contract: cnum(bc && bc.value) }, ...xs]
+      : url;
+    const row = { n,
+                  notion_url: notion,
+                  start_no: start,
+                  contract,
                   tiers, end: g('end').value.trim() };
     // ⭐안 적은 칸은 **키를 아예 안 넣는다.** 빈 문자열을 넣어도 지금은 같게 동작하지만,
     //   '이 회차는 공통 칸을 쓴다'와 '빈칸으로 덮었다'가 구분이 안 돼 나중에 헷갈린다.
@@ -521,8 +647,9 @@ async function saveRounds(id, el){
     return row;
   }).filter(r => r.notion_url);
   rows.sort((a, b) => a.n - b.n);
-  // ⛔ 번호 없는·처음 보는 노션 편집 주소는 저장하지 않는다 — 저장되면 매 회차 「수집 실패」만 쌓인다
-  if (badUrl){ msg.className = 'msg'; msg.textContent = badUrl; return; }
+  // ⛔ 번호 없는·처음 보는 노션 편집 주소는 저장하지 않는다 — 저장되면 매 회차 「수집 실패」만 쌓인다.
+  //   같은 주소 두 번·추가 계약 합 초과도 같다(저장하면 두 노션이 같은 사람을 두 번 세거나 몫이 음수가 된다)
+  if (bad){ msg.className = 'msg'; msg.textContent = bad; return; }
 
   const cur = rows[rows.length - 1] || {};
   msg.className = 'msg'; msg.textContent = '저장 중…';
@@ -537,6 +664,16 @@ async function saveRounds(id, el){
   if (error){ msg.className = 'msg'; msg.textContent = schemaHint(error.message) || error.message; return; }
 
   if (el && el.type === 'number') el.value = cnum(el.value) ?? '';
+  // 저장된 모양이 새 기준이다 · 주소를 다시 넣어 깨짐이 풀린 줄은 경고를 걷는다
+  for (const o of origs){
+    const ob2 = o.r.querySelector('.in-obase'), ox2 = o.r.querySelector('.in-oextras');
+    if (ob2) ob2.value = o.base;
+    if (ox2) ox2.value = o.xs.join(',');
+    if (o.wasBroken){
+      const bk = o.r.querySelector('.in-broken'); if (bk) bk.value = '';
+      const w = o.r.querySelector('.rwarn'); if (w) w.hidden = true;
+    }
+  }
   msg.className = 'msg ok';
   msg.textContent = '저장됨 · ' + rows.length + '개 회차'
     + (cur.contract ? ' · 현재 ' + cur.n + '회차 계약 ' + cur.contract + '건' : '');
@@ -563,13 +700,31 @@ function addRound(id, lastUrl){
     start_no: '', contract: null, tiers: {}, end: '', offer: '', visit_hours: '' }));
 }
 
+/* 「＋ 노션 하나 더」 — 빈 추가 줄을 붙인다. 주소를 넣고 칸 밖을 누를 때 저장된다(빈 줄은 저장에서 빠진다). */
+function addExtra(id, btn){
+  const wrap = btn.closest('.rextra');
+  wrap.querySelector('.xrows').insertAdjacentHTML('beforeend', extraRowHtml(id, {}));
+  const last = wrap.querySelector('.xrow:last-child .in-xurl');
+  if (last) last.focus();
+}
+function removeExtra(id, btn){
+  const xr = btn.closest('.xrow');
+  if (xr) xr.remove();
+  saveRounds(id, null);
+}
+
 function roundRowHtml(id, r){
+  const xs = r.extras || [];
   const inp = (cls, val, ph, extra) =>
     `<input class="in-${cls} mono" type="${extra || 'number'}" value="${esc(val ?? '')}"
             placeholder="${ph}" onchange="saveRounds(${id}, this)">`;
   return `<div class="rrow">
     <span class="rn">${r.n}회차</span>
     <input class="in-n" type="hidden" value="${r.n}">
+    <input class="in-base0" type="hidden" value="${esc(r.base0 ?? '')}">
+    <input class="in-obase" type="hidden" value="${esc(r.saved && r.notion_url ? notionKey(r.notion_url) : '')}">
+    <input class="in-oextras" type="hidden" value="${esc(r.saved ? xs.map(x => notionKey(x.url)).join(',') : '')}">
+    ${r.broken ? '<input class="in-broken" type="hidden" value="1">' : ''}
     <input class="in-url" type="url" value="${esc(r.notion_url || '')}"
            placeholder="노션 주소" onchange="saveRounds(${id}, this)">
     ${inp('start', r.start_no, '시작 No.')}
@@ -579,6 +734,14 @@ function roundRowHtml(id, r){
     ${inp('u1k', r.tiers.u1k, '1천 미만')}
     ${inp('f1k', r.tiers.f1k, '1천 이상')}
     ${inp('f10k', r.tiers.f10k, '1만 이상')}
+    ${r.broken ? '<div class="rwarn">이 회차 노션 주소가 깨졌어요 — 노션 주소를 다시 넣어 주세요.</div>' : ''}
+    <div class="rextra">
+      <div class="xrows">${xs.map(x => extraRowHtml(id, x)).join('')}</div>
+      <div class="xtool">
+        <button type="button" class="ghost sm" onclick="addExtra(${id}, this)">＋ 노션 하나 더</button>
+        <span class="xshare">${esc(shareText(r.contract, xs))}</span>
+      </div>
+    </div>
     <div class="rguide">
       <div><label for="r-off-${id}-${r.n}">${r.n}회차 제공내역</label>
         <textarea class="in-offer" id="r-off-${id}-${r.n}" rows="2"
@@ -690,14 +853,15 @@ async function loadAll(){
         <div class="rfoot">
           <button class="ghost sm" onclick="addRound(${c.id}, '${esc(rs[rs.length-1].notion_url)}')">＋ 회차 추가</button>
           <span class="tip">같은 노션에서 이어가면 주소는 그대로 두고 <b>시작 No.</b> 만 적습니다.
-            새 노션이면 주소를 바꾸고 시작 No. 는 1.</span>
+            새 노션이면 주소를 바꾸고 시작 No. 는 1.<br>
+            같은 회차를 노션 두 곳(예: 피클리 + 외주사)에서 함께 모집하면 그 회차 줄 아래 <b>＋ 노션 하나 더</b> 를 누릅니다.</span>
           <div class="out" id="deal-out-${c.id}" data-total="${tot}">${out}</div>
           <span class="msg" id="deal-msg-${c.id}"></span>
         </div>
       </div>
       ${real}
       <div class="meta">
-        <div>노션 <a href="${esc(c.notion_url)}" target="_blank" rel="noopener">${esc(c.notion_url)}</a></div>
+        <div>노션 <a href="${esc(parseNotion(c.notion_url).url)}" target="_blank" rel="noopener">${esc(parseNotion(c.notion_url).url)}</a></div>
         <div class="field">
           <label for="g-offer-${c.id}">제공내역 <span class="hint">— 공통. 위 회차 칸이 비어 있는 회차에만 나갑니다</span></label>
           <textarea id="g-offer-${c.id}" rows="2"
