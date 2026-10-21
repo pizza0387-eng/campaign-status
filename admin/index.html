@@ -178,6 +178,7 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
 
 .real{font-size:12px; color:var(--ink-3); margin-top:8px}
 .real b{color:var(--ink-2); font-weight:700}
+.real .gap{color:var(--warn); font-weight:700}
 .meta{margin-top:12px; padding-top:11px; border-top:1px dashed var(--line-2);
   font-size:12.5px; color:var(--ink-3); line-height:1.7; word-break:break-all;
   display:flex; flex-direction:column; gap:9px}
@@ -296,6 +297,55 @@ function realTiers(rs){
 function realCount(sum, k){
   if (k === 'u1k') return Math.max(0, (sum.f_known || 0) - (sum.f1k || 0));
   return sum[k] ?? 0;
+}
+/* 실제 섭외로 계약 칸 채우기 — 대표님 2026-10-21 「최소 기준 이상이면 조건통과야 /
+   1만이상이 14명인데 16명이면 그건 14명채워진거고 2명은 1천이상이 된거야」.
+   위 칸(1만 이상)부터 계약 수만큼 채우고, 넘친 사람은 아래 칸으로 내려가 채운다.
+   어느 공고로 신청했는지는 안 본다 — 실제 팔로워 수만 본다(한 회차에 공고가 3개여도 같다).
+   sum = 한 회차 집계(수집기 summarize · 취소 뺌) · tiers = 그 회차 계약 구성.
+   계약 구성이 하나도 없으면 null → 옛 줄 그대로. */
+const FILL_ORDER = ['f10k', 'f1k', 'u1k'];
+function fillTiers(sum, tiers){
+  const t = tiers || {}, s = sum || {};
+  const own = { f10k: s.f10k || 0,
+                f1k: Math.max(0, (s.f1k || 0) - (s.f10k || 0)),
+                u1k: Math.max(0, (s.f_known || 0) - (s.f1k || 0)) };
+  const want = {}; FILL_ORDER.forEach(k => { want[k] = cnum(t[k]); });
+  const last = FILL_ORDER.map(k => want[k] != null).lastIndexOf(true);
+  if (last < 0) return null;
+  const cells = []; let carry = 0;
+  for (let i = 0; i <= last; i++){
+    const k = FILL_ORDER[i], pool = own[k] + carry;
+    if (want[k] == null){ carry = pool; continue; }      // 계약 없는 칸은 건너뛰고 아래로 그대로 내려간다
+    const got = Math.min(want[k], pool);
+    cells.push({ k, want: want[k], got, gap: want[k] - got, down: pool - got });
+    carry = pool - got;
+  }
+  let below = 0;                                         // 계약 맨 아래 칸보다 팔로워가 적은 사람 = 어느 칸에도 안 든다
+  for (let i = last + 1; i < FILL_ORDER.length; i++) below += own[FILL_ORDER[i]];
+  return { cells, extra: carry, below, own,
+           unknown: Math.max(0, (s.total || 0) - (s.f_known || 0)) };
+}
+function fillLine(f){
+  const label = k => (TIERS.find(([x]) => x === k) || [k, k])[1];
+  const parts = f.cells.map((c, i) => {
+    const next = f.cells[i + 1];
+    return `${label(c.k)} <b>${c.got}</b>/${c.want}명` +
+      (c.gap ? ` <span class="gap">남은 자리 ${c.gap}</span>` : ' ✓') +
+      (next && c.down ? ` (${c.down}명은 ${label(next.k)}으로)` : '');
+  });
+  if (f.extra) parts.push(`계약보다 많이 ${f.extra}명`);
+  // 계약 맨 아래 칸보다 적은 사람 — 이때는 늘 1천 미만 계약이 없는 업체라 「1천 미만」 글자를 안 쓴다(realTiers 규칙 · 5차 🟡1)
+  const under = f.cells[f.cells.length - 1].k === 'f10k' ? ' 1만 미만' : '';
+  if (f.below) parts.push(`계약 밖${under} ${f.below}명`);
+  if (f.unknown) parts.push(`팔로워 못 읽음 ${f.unknown}명`);
+  return parts.join(' · ');
+}
+/* 칸 채우기 전 실제 팔로워 그대로(겹치지 않게) — 1천 미만은 realTiers 규칙대로 계약에 있는 업체만 */
+function ownLine(own, rs){
+  const name = { f10k: '1만 이상', f1k: '1천~1만', u1k: '1천 미만' };
+  const keys = realTiers(rs).map(([k]) => k);
+  return FILL_ORDER.filter(k => keys.includes(k)).map(k => `${name[k]} ${own[k]}`).join(' · ') + '명';
 }
 
 function normalizePhone(value){
@@ -825,7 +875,19 @@ async function loadAll(){
     const out = (cc && tot !== '')
       ? `확보 <b>${tot}</b>명 · <span class="${gap ? 'gap' : ''}">남은 자리 <b>${gap}</b>건</span>` : '';
     // 실제 섭외 팔로워 구성 — 계약값과 다를 수 있어서 여기(내부)에만 띄운다.
-    const real = sum.f_known
+    // 계약 구성이 있으면 지금 회차만 세어 위 칸부터 채운다(fillTiers · 대표님 2026-10-21).
+    // 회차별 집계(수집기 summary.rounds)가 아직 없으면 전체 집계로 센다.
+    const rsum = (sum.rounds && sum.rounds[String(cur.n)]) || null;
+    const fsum = rsum || sum;
+    const fill = fillTiers(fsum, t);
+    const scope = rs.length > 1 ? (rsum ? ` (${cur.n}회차)` : ' (전체 회차)') : '';
+    // 지금 회차가 0명이어도 새 줄(「0/14명 남은 자리 14」) — 옛 줄로 떨어지면 앞 회차 사람이 회차 표시 없이 섞인다(5차 🟡2)
+    // 수집 전 업체(s 없음)는 줄을 안 띄운다
+    const real = fill && s
+      ? `<div class="real">실제 섭외${scope} · ${fillLine(fill)}
+         <span style="color:var(--ink-3)">— 실제 팔로워: ${ownLine(fill.own, rs)}
+         · 광고주 화면에는 위 계약값만 나갑니다</span></div>`
+      : sum.f_known
       ? `<div class="real">실제 섭외 · ${realTiers(rs).map(([k, l]) =>
           `${l} <b>${realCount(sum, k)}</b>명`).join(' · ')}
          <span style="color:var(--ink-3)">— 광고주 화면에는 위 계약값만 나갑니다</span></div>` : '';
