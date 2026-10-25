@@ -244,6 +244,25 @@ tr.s-unfilled td{background:repeating-linear-gradient(135deg,transparent,transpa
 a:focus-visible,.go:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
 .dash{color:var(--void)}
 
+/* ── 따종 리뷰 캡처 ── 2026-10-24 대표님 요청. 「리뷰 보기」 옆 작은 그림 → 누르면 크게(shotHtml · openShot).
+   ⭐버튼으로 감싸서 키보드 Enter·Space 도 그대로 먹는다. 크게 보기 바탕은 다크모드에서도 검은 반투명 그대로.
+   ⛔.shot·.zoom 은 display 를 직접 정해서 hidden 속성이 안 먹는다 — [hidden] 줄을 지우지 말 것. */
+.act .go,.shot{vertical-align:middle}
+.shot{display:inline-flex; padding:0; margin:0; border:1px solid var(--line-2); border-radius:8px;
+  background:var(--raise); overflow:hidden; cursor:zoom-in; line-height:0}
+.shot:hover{border-color:var(--ink-3)}
+.shot img{display:block; height:40px; width:auto; max-width:60px; object-fit:cover}
+.zoom{position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center;
+  padding:60px 16px 20px; background:rgba(0,0,0,.8)}
+.zoom img{display:block; width:auto; height:auto; max-width:100%;
+  max-height:calc(100vh - 80px); max-height:calc(100dvh - 80px);
+  object-fit:contain; border-radius:8px; background:#fff; box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.zoom-x{position:absolute; top:12px; right:12px; padding:8px 14px; border-radius:9px;
+  border:1px solid rgba(255,255,255,.4); background:rgba(0,0,0,.5); color:#fff;
+  font:inherit; font-size:13.5px; font-weight:700; cursor:pointer}
+.shot[hidden],.zoom[hidden]{display:none}
+.shot:focus-visible,.zoom-x:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+
 .foot{font-size:12px; color:var(--ink-3); line-height:1.75; padding:0 2px}
 .state{padding:56px 18px; text-align:center; color:var(--ink-2); font-size:14.5px}
 
@@ -532,17 +551,41 @@ function specHtml(contract, tiers){
   return '<dl class="spec"><dt>계약 구성</dt><dd>' + items.join('') + '</dd></dl>';
 }
 
+/* 따종 리뷰 캡처 — 2026-10-24 대표님 「따종 리뷰 캡처본도 옆에 누르면 크게 보일수있게 할수있나?」.
+   ⭐**우리 보관함 공개 주소만** 그림으로 낸다: <SB_URL>/storage/v1/object/public/xhs-shots/dp/<16진 32자>.<webp|png|jpg>
+     수집기가 같은 꼴만 rows 에 싣지만, 화면도 한 번 더 거른다 — 다른 주소(외부 사이트·다른 보관함·
+     javascript:·따옴표 섞인 글자)는 그림도 칸도 안 생기고 화면이 지금 그대로다.
+   ⭐SB_URL 이 https 호스트가 아니면(배포 치환 전 · 로컬 미리보기의 빈 값) 아무것도 안 낸다.
+   ⭐크게 보기(openShot)도 넣기 직전에 이 함수로 다시 거른다. */
+const SHOT_TAIL = /^dp\/[0-9a-f]{32}\.(?:webp|png|jpe?g)$/;
+function shotUrl(u){
+  const base = String(SB_URL).replace(/\/+$/, '');
+  if (typeof u !== 'string' || !/^https:\/\/[A-Za-z0-9.-]+(?::\d+)?$/.test(base)) return '';
+  const pre = base + '/storage/v1/object/public/xhs-shots/';
+  return (u.startsWith(pre) && SHOT_TAIL.test(u.slice(pre.length))) ? u : '';
+}
+
+/* ⛔주소를 인라인 이벤트(onclick=…) 글자에 넣지 않는다 — data-shot 에 두고 bindShots 가 위임으로 받는다. */
+function shotHtml(u){
+  const s = shotUrl(u);
+  return s ? '<button type="button" class="shot" data-shot="' + esc(s) + '" aria-label="따종 캡처 크게 보기">'
+    + '<img src="' + esc(s) + '" alt="따종 캡처" loading="lazy" decoding="async"></button>' : '';
+}
+
 function rowHtml(r){
   const st = r.status || 'recruited';
   const cell = (label, html, empty, cls) =>
     '<td class="c' + (empty ? ' dash' : '') + (cls ? ' ' + cls : '') +
     '" data-l="' + label + '">' + (empty ? '—' : html) + '</td>';
 
-  const review = r.xhs
+  const links = r.xhs
     ? '<a class="go" href="' + esc(r.xhs) + '" target="_blank" rel="noopener nofollow">리뷰 보기</a>'
       + (r.dp ? ' <a class="go alt" href="' + esc(r.dp) +
         '" target="_blank" rel="noopener nofollow">디엔핑</a>' : '')
     : '';
+  // 캡처가 없으면 links 그대로(지금 화면과 글자 하나 안 다르다) · 샤오홍슈 링크 없이 캡처만 있으면 그림만
+  const shot = shotHtml(r.shot);
+  const review = links + (shot ? (links ? ' ' : '') + shot : '');
   // 취소·미선정 행은 이름 칸이 비거나 '취소' 글자라 상태 배지와 겹친다 — 배지에 맡긴다
   const named = (st === 'cancelled' || st === 'unfilled') ? '' : esc(r.id);
   const note = r.xhs_title ? '<div class="note">' + esc(r.xhs_title) + '</div>' : '';
@@ -635,6 +678,73 @@ function roundsHtml(rounds, rows, s, today){
   }).join('');
 }
 
+/* 따종 캡처 크게 보기 — 검은 반투명 바탕 위에 화면 안에 맞춰 띄운다(휴대폰 폭 포함).
+   ⭐창은 하나를 만들어 두고 다시 쓴다(#app 밖 body 끝 — render 가 #app 을 갈아엎어도 안 지워진다).
+   ⭐닫기 = 바깥(검은 바탕) · 닫기 단추 · Esc. 그림 자체를 누르면 안 닫는다. 닫으면 누른 작은 그림으로 초점을 돌려준다. */
+let zoomBox = null, zoomImg = null, zoomX = null, zoomFrom = null;
+
+function openShot(btn){
+  const u = shotUrl(btn && btn.getAttribute ? btn.getAttribute('data-shot') : '');
+  if (!u) return;                                  // 넣기 직전에 다시 거른다
+  if (!zoomBox){
+    zoomBox = document.createElement('div');
+    zoomBox.className = 'zoom';
+    zoomBox.hidden = true;
+    zoomBox.setAttribute('role', 'dialog');
+    zoomBox.setAttribute('aria-modal', 'true');
+    zoomBox.setAttribute('aria-label', '따종 캡처 크게 보기');
+    zoomX = document.createElement('button');
+    zoomX.type = 'button';
+    zoomX.className = 'zoom-x';
+    zoomX.textContent = '닫기 ✕';
+    zoomImg = document.createElement('img');
+    zoomImg.alt = '따종 캡처';
+    zoomBox.appendChild(zoomX);
+    zoomBox.appendChild(zoomImg);
+    document.body.appendChild(zoomBox);
+  }
+  zoomFrom = btn;
+  zoomImg.src = u;
+  zoomBox.hidden = false;
+  document.documentElement.style.overflow = 'hidden';   // 뒤 화면이 같이 굴러가지 않게
+  zoomX.focus();
+}
+
+function closeShot(){
+  if (!zoomBox || zoomBox.hidden) return;
+  zoomBox.hidden = true;
+  zoomImg.removeAttribute('src');                  // 다음에 열 때 앞 그림이 잠깐 비치지 않게
+  document.documentElement.style.overflow = '';
+  if (zoomFrom && zoomFrom.isConnected && zoomFrom.focus) zoomFrom.focus();
+  zoomFrom = null;
+}
+
+/* 위임 이벤트 — 문서에 한 번만 건다. boot() 첫 줄에서 부른다(그림이 그려지기 전).
+   ⭐그림 오류(error)는 거품이 안 올라와서 capture 단계로 받는다 → 작은 그림은 숨기고, 크게 보기는 닫는다. */
+function bindShots(){
+  if (bindShots.done) return;
+  bindShots.done = true;
+  document.addEventListener('error', e => {
+    const t = e.target;
+    if (!t || t.tagName !== 'IMG' || !t.closest) return;
+    const b = t.closest('.shot');
+    if (b) b.hidden = true;
+    else if (t === zoomImg) closeShot();
+  }, true);
+  document.addEventListener('click', e => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    const b = t.closest('.shot');
+    if (b){ openShot(b); return; }
+    if (zoomBox && !zoomBox.hidden && (t === zoomBox || t.closest('.zoom-x'))) closeShot();
+  });
+  document.addEventListener('keydown', e => {
+    if (!zoomBox || zoomBox.hidden) return;
+    if (e.key === 'Escape' || e.key === 'Esc'){ e.preventDefault(); closeShot(); }
+    else if (e.key === 'Tab'){ e.preventDefault(); zoomX.focus(); }   // 열린 동안 초점은 닫기 단추에
+  });
+}
+
 function render(d){
   const s = d.summary || {};
   const rows = d.rows || [];
@@ -668,6 +778,7 @@ function fail(msg){
 }
 
 async function boot(){
+  bindShots();                                     // 따종 캡처 누르기·오류 — 그리기 전에 건다
   // 로컬 미리보기(--open)는 데이터를 심어 두고 열린다 — 네트워크를 타지 않는다
   if (window.__XHS_PRELOAD__){ render(window.__XHS_PRELOAD__); return; }
   const t = new URLSearchParams(location.hash.slice(1)).get('t');
