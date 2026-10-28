@@ -179,6 +179,18 @@ summary:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border
 .real{font-size:12px; color:var(--ink-3); margin-top:8px}
 .real b{color:var(--ink-2); font-weight:700}
 .real .gap{color:var(--warn); font-weight:700}
+/* 명단 보기 — 내부용. 줄마다 어느 노션(피클리·픽스업)에서 왔는지 */
+.roster{margin-top:10px}
+.roster > summary{font-size:12.5px}
+.roster .hint{font-size:11.5px; color:var(--ink-3); font-weight:500}
+.roster-tip{font-size:11.5px; color:var(--ink-3); margin:7px 0 5px}
+.roster-wrap{overflow-x:auto}
+.roster-t{border-collapse:collapse; width:100%; font-size:12px}
+.roster-t th{font-size:11px; color:var(--ink-3); font-weight:600; text-align:left; padding:4px 7px;
+  border-bottom:1px solid var(--line-2); white-space:nowrap}
+.roster-t td{padding:4px 7px; border-bottom:1px solid var(--line); color:var(--ink-2); white-space:nowrap}
+.roster-t .c{text-align:center}
+.roster-t .src{font-weight:700; color:var(--ink)}
 .meta{margin-top:12px; padding-top:11px; border-top:1px dashed var(--line-2);
   font-size:12.5px; color:var(--ink-3); line-height:1.7; word-break:break-all;
   display:flex; flex-direction:column; gap:9px}
@@ -554,6 +566,98 @@ function shareText(contract, xs){
   const left = c - xs.reduce((a, x) => a + (cnum(x.contract) || 0), 0);
   return left < 0 ? '' : '기본 노션 몫 ' + left + '명';
 }
+
+/* ── 명단 보기 (내부용 · 2026-10-28 대표님 「피클리로 모집된사람인지/픽스업으로 모집된 사람인지 어떻게 알수있어?
+      / 일정수정이라던지 요청할때 그거 필요한데?」) ──
+   줄마다 어느 노션에서 왔는지를 **줄 열쇠 모양에서** 다시 계산한다 — 수집기 `_round_source_list` 와 같은 규칙:
+   기본 노션 줄 = `n:열쇠`(표시 '') · 추가 노션 줄 = `n~표시:열쇠` · 표시 = 's' + SHA-1(notionKey) 앞 6자
+   (앞 노션과 겹치면 7·8…40자) · 같은 노션이 두 번 적히면 한 번만 센다.
+   ⛔ xhs_state.rows 에 출처 칸을 넣지 않는다 — 광고주 RPC(xhs_page)가 rows 를 통째로 준다(절대규칙 1).
+   ⛔ 이 표는 관리 화면에만 — 광고주 화면(pages/c)·알림톡·카톡 문안에는 출처를 쓰지 않는다. */
+// SHA-1 16진 40자(UTF-8) — 수집기 hashlib.sha1(...).hexdigest() 와 같은 값. 동기 계산이라 화면 그리기 안에서 바로 쓴다
+function sha1hex(str){
+  const msg = new TextEncoder().encode(String(str ?? ''));
+  const len = msg.length, nblk = ((len + 8) >>> 6) + 1;      // 64바이트 블록 수(끝 0x80 + 길이 8바이트 자리 포함)
+  const w = new Uint32Array(nblk * 16), x = new Uint32Array(80);
+  for (let i = 0; i < len; i++) w[i >>> 2] |= msg[i] << (24 - (i & 3) * 8);
+  w[len >>> 2] |= 0x80 << (24 - (len & 3) * 8);
+  w[nblk * 16 - 1] = (len * 8) >>> 0;
+  w[nblk * 16 - 2] = Math.floor(len / 0x20000000);
+  const rol = (v, s) => (v << s) | (v >>> (32 - s));
+  let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0;
+  for (let o = 0; o < w.length; o += 16){
+    for (let t = 0; t < 16; t++) x[t] = w[o + t];
+    for (let t = 16; t < 80; t++) x[t] = rol(x[t - 3] ^ x[t - 8] ^ x[t - 14] ^ x[t - 16], 1);
+    let a = h0, b = h1, c = h2, d = h3, e = h4;
+    for (let t = 0; t < 80; t++){
+      const f = t < 20 ? (b & c) | (~b & d) : t < 40 ? b ^ c ^ d : t < 60 ? (b & c) | (b & d) | (c & d) : b ^ c ^ d;
+      const k = t < 20 ? 0x5A827999 : t < 40 ? 0x6ED9EBA1 : t < 60 ? 0x8F1BBCDC : 0xCA62C1D6;
+      const tmp = (rol(a, 5) + f + e + k + x[t]) >>> 0;
+      e = d; d = c; c = rol(b, 30) >>> 0; b = a; a = tmp;
+    }
+    h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
+  }
+  return [h0, h1, h2, h3, h4].map(v => v.toString(16).padStart(8, '0')).join('');
+}
+// 출처 이름 = 수집기 NOTION_SOURCE_NAMES → VISIT_VENDOR 와 같은 이름(디스코드 꼬리표·파트장 카드와 같게) · 모르면 「노션」
+const SOURCE_NAMES = [['wandering-bagpipe-d2f', '피클리'], ['absorbing-mayonnaise-7eb', '픽스업']];
+function sourceName(url){
+  const u = String(url || '').toLowerCase();
+  return (SOURCE_NAMES.find(([d]) => u.includes(d)) || [, '노션'])[1];
+}
+// 회차(roundsOf 한 줄) → 출처 목록 [{url, mark, name}] · [0] = 기본 노션(표시 '') · 깨진 회차 = []
+function sourceMarks(r){
+  if (!r || r.broken) return [];
+  const urls = [r.notion_url, ...(r.extras || []).map(x => x.url)]
+    .map(u => String(u || '').trim()).filter(Boolean);
+  const out = [], seen = new Set(), marks = new Set();
+  for (const url of urls){
+    const id = notionKey(url);
+    if (seen.has(id)) continue;                 // 같은 노션 두 번 = 한 번만(수집기도 두 번 안 읽는다)
+    seen.add(id);
+    let mark = '';
+    if (out.length){                            // 추가 노션만 표시가 붙는다
+      const h = sha1hex(id);
+      for (let k = 6; k <= 40 && !mark; k++) if (!marks.has('s' + h.slice(0, k))) mark = 's' + h.slice(0, k);
+      marks.add(mark);
+    }
+    out.push({ url, mark, name: sourceName(url) });
+  }
+  return out;
+}
+// 줄 → 출처 이름. 회차 = 줄의 round(수집기 split_key 와 같다) · 표시 = 열쇠 모양으로만 가른다
+//   (이름 글자를 보고 추측하지 않는다). 맞는 노션이 없으면 「출처 모름」(노션을 바꾼 뒤 아직 새로 안 읽은 줄 등)
+function rowSourceName(row, byN){
+  const m = String(row.key ?? '').match(/^(\d+)~(s[0-9a-f]{6,40}):/);
+  const src = (byN[cnum(row.round) || 1] || []).find(s => s.mark === (m ? m[2] : ''));
+  return src ? src.name : '출처 모름';
+}
+const ROSTER_STATE = { uploaded:'리뷰 완료', visited:'리뷰 대기', scheduled:'방문 예정',
+                       recruited:'일정 미정', cancelled:'취소' };
+// 업체 카드 안 「명단 보기」(기본 접힘) — 회차(여럿일 때)·No.·아이디·방문·상태·출처. 사람 없는 빈 칸 줄은 뺀다
+function rosterHtml(rs, s){
+  const rows = (s && Array.isArray(s.rows) ? s.rows : [])
+    .filter(r => r && typeof r === 'object' && (String(r.id ?? '').trim() || String(r.visit ?? '').trim()));
+  if (!rows.length) return '';
+  const byN = {};
+  rs.forEach(r => { byN[r.n] = sourceMarks(r); });
+  const multi = rs.length > 1;
+  const list = rows.map(r => ({ r, n: cnum(r.round) || 1, no: cnum(r.no) || 1e6 }))
+    .sort((a, b) => a.n - b.n || a.no - b.no);
+  // 출처는 번호 바로 옆 — 폰(390px)에서 옆으로 밀지 않아도 「No.·출처」가 같이 보이게
+  const body = list.map(({ r, n }) => `<tr>${multi ? `<td class="c">${n}회차</td>` : ''}<td class="c mono">${esc(r.no)}</td>`
+    + `<td class="src">${esc(rowSourceName(r, byN))}</td>`
+    + `<td>${esc(r.id)}</td><td>${esc(r.visit)}</td><td>${esc(ROSTER_STATE[r.status] || '')}</td></tr>`).join('');
+  return `<details class="roster">
+      <summary>명단 보기 <span class="hint">(내부용 — 광고주 화면엔 안 나감)</span></summary>
+      <div class="roster-tip">No. 는 광고주 화면 번호와 같습니다 · 거래처에 일정을 물을 땐 아이디로 물어 주세요.<br>
+        출처는 마지막 확인 기준입니다 — 노션 목록을 바꿨다면 다음 확인 뒤에 맞습니다.</div>
+      <div class="roster-wrap"><table class="roster-t">
+        <thead><tr>${multi ? '<th>회차</th>' : ''}<th>No.</th><th>출처</th><th>아이디</th><th>방문</th><th>상태</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>
+    </details>`;
+}
 // 추가 노션 한 줄 = 노션 주소 · 시작 No.(비우면 1) · 이 노션 계약 수(선택) · 어느 노션인지 이름 · [빼기]
 function extraRowHtml(id, x){
   const name = x.url ? notionSiteName(x.url) : '';
@@ -922,6 +1026,7 @@ async function loadAll(){
         </div>
       </div>
       ${real}
+      ${rosterHtml(rs, s)}
       <div class="meta">
         <div>노션 <a href="${esc(parseNotion(c.notion_url).url)}" target="_blank" rel="noopener">${esc(parseNotion(c.notion_url).url)}</a></div>
         <div class="field">
