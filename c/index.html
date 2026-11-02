@@ -112,7 +112,8 @@ body{
 .soon-d{margin-left:auto; font-size:13px; color:var(--ink-2); white-space:nowrap}
 .soon-d em{font-style:normal; font-weight:700; color:var(--brand)}
 .soon-m{font-size:12px; color:var(--ink-3)}
-.soon-meal{font-size:12.5px; color:var(--ink-2); white-space:nowrap}   /* 식사권 (11/02) */
+.soon-offer{font-size:12.5px; color:var(--ink-2); line-height:1.5}   /* 제공내역 (11/02) */
+.soon-offer.long{order:1; flex-basis:100%}       /* 긴 글은 이름·날짜 다음 줄 전체로 */
 
 /* ── 캠페인 안내 (제공내역 · 방문가능 시간) ── 2026-09-18 마케터 요청.
    매장이 인플루언서를 맞을 때 필요한 두 가지라 방문 일정 바로 아래에 둔다.
@@ -219,6 +220,7 @@ tbody tr:first-child td{border-top:none}
 .c{text-align:center; white-space:nowrap}
 .num{width:44px; color:var(--ink-3); font-size:12.5px}
 .who-cell{min-width:210px}
+.offer{white-space:normal; text-align:left; min-width:170px; max-width:260px; font-size:13px; line-height:1.5}
 .idn{font-weight:650; letter-spacing:-.01em; word-break:break-all}
 .note{font-size:12px; color:var(--ink-3); margin-top:3px; line-height:1.45;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
@@ -292,6 +294,8 @@ a:focus-visible,.go:focus-visible{outline:2px solid var(--brand); outline-offset
   td.who-cell::before{display:none}
   td.act{margin-top:10px}
   td.act::before{display:none}
+  td.offer{min-width:0; max-width:none; padding-left:80px}   /* 긴 글이 칸 이름 아래로 말려 들어가지 않게 */
+  td.offer::before{margin-left:-80px}
   td.dash{display:none}                 /* 빈 칸은 카드에서 아예 뺀다 */
   tr.s-unfilled td{background:none}
   tr.s-unfilled{background:repeating-linear-gradient(135deg,transparent,transparent 7px,
@@ -360,6 +364,8 @@ function roundsOf(d){
   return [fill({ n: 1, contract: cnum(d.contract ?? s.contract), tiers: d.tiers || s.tiers })];
 }
 
+function offerTrim(v){ return typeof v === 'string' ? v.trim() : ''; }
+
 function rowsOfRound(rows, n){
   return (rows || []).filter(r => (cnum(r.round) || 1) === n);
 }
@@ -368,7 +374,7 @@ function rowsOfRound(rows, n){
    ⛔판정 규칙은 xhs_watch.visit_date / past_visit 과 **같아야 한다**
      (당일까지는 예정, 다음 날부터 지난 것). 갈라지면 뱃지와 배너가 다른 말을 한다. */
 function visitDate(visit, today){
-  // 피클리 줄은 '2026.8.8 15:00' 처럼 연도가 붙어 온다(xhs_watch.join_visit) — 그때는 그 해를 믿는다
+  // 줄에 따라 '2026.8.8 15:00' 처럼 연도가 붙어 온다(xhs_watch.join_visit) — 그때는 그 해를 믿는다
   const m = /^\s*(?:(\d{4})[./])?(\d{1,2})[./](\d{1,2})\b/.exec(String(visit || ''));
   if (!m) return null;
   const mo = +m[2], da = +m[3];
@@ -399,10 +405,22 @@ function upcoming(rows, today, days){
 
 function whenWord(gap){ return gap === 0 ? '오늘' : gap === 1 ? '내일' : null; }
 
-// 이름 옆엔 칸 머리가 없어 금액만 두면 무슨 돈인지 모른다 — 「식사권」 을 붙인다
-function mealWord(text){ return String(text).includes('식사권') ? String(text) : '식사권 ' + text; }
+/* 맨 위 줄의 제공내역 — 그 사람 줄 글이 먼저, 없으면 그 회차 안내.
+   「*」 로 시작하는 줄은 조건 안내라 안내 상자에만 둔다. 다 지워지면 안 보인다. */
+function soonOffer(r, rounds){
+  const n = cnum(r.round) || 1;
+  const round = (rounds || []).find(x => cnum(x.n) === n);
+  return offerTrim(r.meal || (round && round.offer)).split(/\r\n|\r|\n/)
+    .map(l => l.trim()).filter(l => l && !l.startsWith('*')).join('\n');
+}
 
-function upcomingHtml(list, multi){
+function soonOfferHtml(text){
+  if (!text) return '';
+  const long = text.includes('\n') || text.length > 24;
+  return '<span class="soon-offer' + (long ? ' long' : '') + '">' + multiline(text) + '</span>';
+}
+
+function upcomingHtml(list, multi, rounds){
   if (!list.length) return '';
   const t0 = list.filter(x => x.gap === 0).length;
   const t1 = list.filter(x => x.gap === 1).length;
@@ -424,7 +442,7 @@ function upcomingHtml(list, multi){
         const tag = (multi && x.r.round) ? x.r.round + '회차 ' : '';
         return '<li><b class="mono">' + esc(tag) + 'No.' + esc(x.r.no) + '</b> '
           + esc(x.r.id || '섭외 진행 중')
-          + (x.r.meal ? '<span class="soon-meal">' + esc(mealWord(x.r.meal)) + '</span>' : '')
+          + soonOfferHtml(soonOffer(x.r, rounds))
           + '<span class="soon-d">' + (w ? '<em>' + w + '</em> ' : '')
           + esc(day + (time ? ' ' + time : '')) + '</span></li>';
       }).join('')
@@ -435,8 +453,8 @@ function upcomingHtml(list, multi){
 /* 캠페인 안내 — 제공내역 · 방문가능 요일/시간대 (2026-09-18 마케터 요청).
 
    ⭐출처는 **관리화면에 사람이 입력한 글자** 하나다. 노션 본문에서 긁어오지 않는다 —
-     본문에는 외주 정산액·외주사 담당자 실명이 섞여 있어(CLAUDE.md 절대규칙 1),
-     본문을 옮기는 순간 광고주 화면으로 샌다. 표에도 이 칸은 없다(규칙 4).
+     본문에는 화면에 내면 안 되는 내부 글이 섞여 있어,
+     본문을 옮기는 순간 광고주 화면으로 샌다. 표에도 이 칸은 없다.
    ⛔안 적었으면 그 줄을 **아예 안 낸다.** '미정' 같은 말을 지어내지 않는다 —
      기간 배지(periodHtml)가 종료일 없을 때 아무것도 안 내는 것과 같은 규칙이다.
    ⭐줄바꿈은 살린다(여러 줄로 적는 게 자연스러운 내용이다). escape 를 **먼저** 하고
@@ -493,7 +511,7 @@ function fmtNum(n){
 }
 
 /* 성과 한 줄 — 광고주가 사장님·본사에 그대로 보고할 숫자.
-   ⛔좋아요·저장은 합산하지 않는다 (외주사 수기 입력이라 단위가 뒤죽박죽이다). */
+   ⛔좋아요·저장은 합산하지 않는다 (수기 입력이라 단위가 뒤죽박죽이다). */
 function perfHtml(s){
   const bits = [];
   if (s.total) bits.push('인플루언서 <b class="mono">' + s.total + '명</b>');
@@ -511,7 +529,7 @@ function perfHtml(s){
    ⛔ 예전처럼 `1..계약건수` 의 빈 번호를 메우면, 취소 3건이 그 범위 안에 있을 때
      미선정 칸이 1개만 생기는데 머리말은 '남은 자리 4건' 이라고 말한다 — 실제로
      그렇게 어긋나 있었다. 표의 미선정 칸 수와 '남은 자리' 는 **항상 같아야 한다.**
-   ⛔ 중간에 빠진 번호를 억지로 만들지 않는다. 외주사가 안 쓴 번호는 없는 자리다. */
+   ⛔ 중간에 빠진 번호를 억지로 만들지 않는다. 표에 안 쓴 번호는 없는 자리다. */
 function padRows(rows, contract){
   const c = cnum(contract);
   const out = (rows || []).slice();
@@ -577,12 +595,26 @@ function shotHtml(u){
     + '<img src="' + esc(s) + '" alt="따종 캡처" loading="lazy" decoding="async"></button>' : '';
 }
 
-/* 식사권 — 방문 일시 오른쪽 칸 (2026-11-02).
-   ⭐줄의 값만 본다. 다른 줄 값으로 메우지 않는다.
-   취소·미선정 줄은 나갈 일이 없는 돈이라 값을 숨긴다. */
-function mealShown(r){ return !!r.meal && r.status !== 'cancelled' && r.status !== 'unfilled'; }
+/* 제공내역 — 방문 일시 오른쪽 칸 (2026-11-02).
+   그 줄 글이 먼저, 없으면 그 회차 안내. 다른 줄 값으로 메우지 않는다.
+   취소·미선정·빈 자리는 나갈 일이 없어 글을 숨긴다.
+   ⭐칸은 사람마다 글이 다를 때만 낸다 — 다 같으면 바로 위 안내 상자에 이미 있다.
+     비교는 공백·줄바꿈을 뭉쳐서 한다(적는 곳이 달라 공백만 다른 글을 다르다고 하지 않게). */
+function offerOfRow(r, round){
+  if (r.status === 'cancelled' || r.status === 'unfilled' || r.status === 'empty') return '';
+  return offerTrim(r.meal) || offerTrim(round && round.offer);
+}
 
-function rowHtml(r, withMeal){
+function offerDiffers(rows, round){
+  const flat = v => v.replace(/\s+/g, ' ');
+  const base = flat(offerTrim(round && round.offer));
+  return rows.some(r => {
+    const t = flat(offerOfRow(r, round));
+    return t && t !== base;
+  });
+}
+
+function rowHtml(r, offer){
   const st = r.status || 'recruited';
   const cell = (label, html, empty, cls) =>
     '<td class="c' + (empty ? ' dash' : '') + (cls ? ' ' + cls : '') +
@@ -606,19 +638,19 @@ function rowHtml(r, withMeal){
       + (named || '—') + '</span>' + note + '</td>'
     + cell('팔로워', '<span class="mono">' + esc(r.followers) + '</span>', !r.followers)
     + cell('방문 일시', '<span class="mono">' + esc(r.visit) + '</span>', !r.visit)
-    + (withMeal ? cell('식사권', esc(r.meal), !mealShown(r)) : '')
+    + (offer === undefined ? '' : cell('제공내역', multiline(offer), !offer, 'offer'))
     + cell('상태', '<span class="tag t-' + st + '">' + esc(LABEL[st] || st) + '</span>')
     + cell('리뷰', review, !review, 'act')
     + '</tr>';
 }
 
-function tableHtml(rows){
-  const withMeal = rows.some(mealShown);
+function tableHtml(rows, round){
+  const withOffer = offerDiffers(rows, round);
   return '<div class="scroll"><table><thead><tr>'
     + '<th class="c">No.</th><th>인플루언서</th><th class="c">팔로워</th>'
-    + '<th class="c">방문 일시</th>' + (withMeal ? '<th class="c">식사권</th>' : '')
+    + '<th class="c">방문 일시</th>' + (withOffer ? '<th class="c">제공내역</th>' : '')
     + '<th class="c">상태</th><th class="c">리뷰</th></tr></thead><tbody>'
-    + (rows.map(r => rowHtml(r, withMeal)).join('')
+    + (rows.map(r => rowHtml(r, withOffer ? offerOfRow(r, round) : undefined)).join('')
        || '<tr><td colspan="6" class="state">아직 등록된 체험단이 없습니다.</td></tr>')
     + '</tbody></table></div>';
 }
@@ -637,7 +669,7 @@ function roundBody(round, rows, s){
       + specHtml(contract, round.tiers) + '</div>'
     + (padded.length ? meterHtml(padded) + keysHtml(padded) : '')
     + perfHtml(s)
-    + tableHtml(padded);
+    + tableHtml(padded, round);
 }
 
 /* 회차 블록 전체.
@@ -775,7 +807,7 @@ function render(d){
                                          : '첫 확인을 준비하고 있습니다'}</div>
     </header>
 
-    ${upcomingHtml(upcoming(rows, today), multi)}
+    ${upcomingHtml(upcoming(rows, today), multi, rounds)}
     ${linkNoteHtml(rows)}
     ${roundsHtml(rounds, rows, s, today)}
 
