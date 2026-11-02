@@ -481,7 +481,9 @@ function roundsOf(c){
                start_no: cnum(r.start_no) || 1, contract: cnum(r.contract),
                tiers: r.tiers || {}, end: r.end || '',
                offer: g(r.offer), visit_hours: g(r.visit_hours),
-               meal: Array.isArray(r.meal) ? r.meal : [] };   // 식사권 구간표 — 이 화면엔 칸이 없고 저장 때 그대로 돌려보낸다 (11/02)
+               meal: Array.isArray(r.meal) ? r.meal : [],   // 구간표 — 이 화면엔 칸이 없고 저장 때 그대로 돌려보낸다 (11/02)
+               offer_by: (r.offer_by && typeof r.offer_by === 'object') ? r.offer_by : null,   // 같은 까닭
+               recruit: g(r.recruit) };
     }).sort((a, b) => a.n - b.n);
   return [{ n: 1, notion_url: c.notion_url || '', extras: [], base0: null, start_no: 1,
             contract: cnum(c.contract_count), tiers: c.contract_tiers || {}, end: '',
@@ -805,6 +807,13 @@ async function saveRounds(id, el){
       try { const steps = JSON.parse(mealEl.value); if (Array.isArray(steps) && steps.length) row.meal = steps; }
       catch (e){ bad = bad || n + '회차 · 식사권 값을 읽지 못했어요 — 화면을 새로고침한 뒤 다시 저장해 주세요.'; }
     }
+    const byEl = g('offer_by');
+    if (byEl && byEl.value){
+      try { const by = JSON.parse(byEl.value); if (by && Object.keys(by).length) row.offer_by = by; }
+      catch (e){ bad = bad || n + '회차 · 제공내역 값을 읽지 못했어요 — 화면을 새로고침한 뒤 다시 저장해 주세요.'; }
+    }
+    const recEl = g('recruit');
+    if (recEl && recEl.value) row.recruit = recEl.value;
     return row;
   }).filter(r => r.notion_url);
   rows.sort((a, b) => a.n - b.n);
@@ -887,6 +896,8 @@ function roundRowHtml(id, r){
     <input class="in-oextras" type="hidden" value="${esc(r.saved ? xs.map(x => notionKey(x.url)).join(',') : '')}">
     ${r.broken ? '<input class="in-broken" type="hidden" value="1">' : ''}
     ${(r.meal || []).length ? `<input class="in-meal" type="hidden" value="${esc(JSON.stringify(r.meal))}">` : ''}
+    ${r.offer_by ? `<input class="in-offer_by" type="hidden" value="${esc(JSON.stringify(r.offer_by))}">` : ''}
+    ${r.recruit ? `<input class="in-recruit" type="hidden" value="${esc(r.recruit)}">` : ''}
     <input class="in-url" type="url" value="${esc(r.notion_url || '')}"
            placeholder="노션 주소" onchange="saveRounds(${id}, this)">
     ${inp('start', r.start_no, '시작 No.')}
