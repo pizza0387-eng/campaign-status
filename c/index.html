@@ -112,6 +112,7 @@ body{
 .soon-d{margin-left:auto; font-size:13px; color:var(--ink-2); white-space:nowrap}
 .soon-d em{font-style:normal; font-weight:700; color:var(--brand)}
 .soon-m{font-size:12px; color:var(--ink-3)}
+.soon-meal{font-size:12.5px; color:var(--ink-2); white-space:nowrap}   /* 식사권 (11/02) */
 
 /* ── 캠페인 안내 (제공내역 · 방문가능 시간) ── 2026-09-18 마케터 요청.
    매장이 인플루언서를 맞을 때 필요한 두 가지라 방문 일정 바로 아래에 둔다.
@@ -398,6 +399,9 @@ function upcoming(rows, today, days){
 
 function whenWord(gap){ return gap === 0 ? '오늘' : gap === 1 ? '내일' : null; }
 
+// 이름 옆엔 칸 머리가 없어 금액만 두면 무슨 돈인지 모른다 — 「식사권」 을 붙인다
+function mealWord(text){ return String(text).includes('식사권') ? String(text) : '식사권 ' + text; }
+
 function upcomingHtml(list, multi){
   if (!list.length) return '';
   const t0 = list.filter(x => x.gap === 0).length;
@@ -420,6 +424,7 @@ function upcomingHtml(list, multi){
         const tag = (multi && x.r.round) ? x.r.round + '회차 ' : '';
         return '<li><b class="mono">' + esc(tag) + 'No.' + esc(x.r.no) + '</b> '
           + esc(x.r.id || '섭외 진행 중')
+          + (x.r.meal ? '<span class="soon-meal">' + esc(mealWord(x.r.meal)) + '</span>' : '')
           + '<span class="soon-d">' + (w ? '<em>' + w + '</em> ' : '')
           + esc(day + (time ? ' ' + time : '')) + '</span></li>';
       }).join('')
@@ -572,7 +577,12 @@ function shotHtml(u){
     + '<img src="' + esc(s) + '" alt="따종 캡처" loading="lazy" decoding="async"></button>' : '';
 }
 
-function rowHtml(r){
+/* 식사권 — 방문 일시 오른쪽 칸 (2026-11-02).
+   ⭐줄의 값만 본다. 다른 줄 값으로 메우지 않는다.
+   취소·미선정 줄은 나갈 일이 없는 돈이라 값을 숨긴다. */
+function mealShown(r){ return !!r.meal && r.status !== 'cancelled' && r.status !== 'unfilled'; }
+
+function rowHtml(r, withMeal){
   const st = r.status || 'recruited';
   const cell = (label, html, empty, cls) =>
     '<td class="c' + (empty ? ' dash' : '') + (cls ? ' ' + cls : '') +
@@ -596,17 +606,19 @@ function rowHtml(r){
       + (named || '—') + '</span>' + note + '</td>'
     + cell('팔로워', '<span class="mono">' + esc(r.followers) + '</span>', !r.followers)
     + cell('방문 일시', '<span class="mono">' + esc(r.visit) + '</span>', !r.visit)
+    + (withMeal ? cell('식사권', esc(r.meal), !mealShown(r)) : '')
     + cell('상태', '<span class="tag t-' + st + '">' + esc(LABEL[st] || st) + '</span>')
     + cell('리뷰', review, !review, 'act')
     + '</tr>';
 }
 
 function tableHtml(rows){
+  const withMeal = rows.some(mealShown);
   return '<div class="scroll"><table><thead><tr>'
     + '<th class="c">No.</th><th>인플루언서</th><th class="c">팔로워</th>'
-    + '<th class="c">방문 일시</th>'
+    + '<th class="c">방문 일시</th>' + (withMeal ? '<th class="c">식사권</th>' : '')
     + '<th class="c">상태</th><th class="c">리뷰</th></tr></thead><tbody>'
-    + (rows.map(rowHtml).join('')
+    + (rows.map(r => rowHtml(r, withMeal)).join('')
        || '<tr><td colspan="6" class="state">아직 등록된 체험단이 없습니다.</td></tr>')
     + '</tbody></table></div>';
 }

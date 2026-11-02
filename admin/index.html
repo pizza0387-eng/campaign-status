@@ -480,7 +480,8 @@ function roundsOf(c){
                extras: nu.extras, base0: nu.base0, broken: !!nu.broken, saved: true,
                start_no: cnum(r.start_no) || 1, contract: cnum(r.contract),
                tiers: r.tiers || {}, end: r.end || '',
-               offer: g(r.offer), visit_hours: g(r.visit_hours) };
+               offer: g(r.offer), visit_hours: g(r.visit_hours),
+               meal: Array.isArray(r.meal) ? r.meal : [] };   // 식사권 구간표 — 이 화면엔 칸이 없고 저장 때 그대로 돌려보낸다 (11/02)
     }).sort((a, b) => a.n - b.n);
   return [{ n: 1, notion_url: c.notion_url || '', extras: [], base0: null, start_no: 1,
             contract: cnum(c.contract_count), tiers: c.contract_tiers || {}, end: '',
@@ -798,6 +799,12 @@ async function saveRounds(id, el){
     const off = g('offer').value.trim(), hrs = g('hours').value.trim();
     if (off) row.offer = off;
     if (hrs) row.visit_hours = hrs;
+    // 식사권 구간표(2026-11-02)는 ERP 화면에서 고친다. ⛔여기서 빠뜨리면 저장 한 번에 금액이 통째로 지워진다 — 불러온 그대로 돌려보낸다
+    const mealEl = g('meal');
+    if (mealEl && mealEl.value){
+      try { const steps = JSON.parse(mealEl.value); if (Array.isArray(steps) && steps.length) row.meal = steps; }
+      catch (e){ bad = bad || n + '회차 · 식사권 값을 읽지 못했어요 — 화면을 새로고침한 뒤 다시 저장해 주세요.'; }
+    }
     return row;
   }).filter(r => r.notion_url);
   rows.sort((a, b) => a.n - b.n);
@@ -879,6 +886,7 @@ function roundRowHtml(id, r){
     <input class="in-obase" type="hidden" value="${esc(r.saved && r.notion_url ? notionKey(r.notion_url) : '')}">
     <input class="in-oextras" type="hidden" value="${esc(r.saved ? xs.map(x => notionKey(x.url)).join(',') : '')}">
     ${r.broken ? '<input class="in-broken" type="hidden" value="1">' : ''}
+    ${(r.meal || []).length ? `<input class="in-meal" type="hidden" value="${esc(JSON.stringify(r.meal))}">` : ''}
     <input class="in-url" type="url" value="${esc(r.notion_url || '')}"
            placeholder="노션 주소" onchange="saveRounds(${id}, this)">
     ${inp('start', r.start_no, '시작 No.')}
