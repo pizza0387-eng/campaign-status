@@ -529,20 +529,42 @@ function perfHtml(s){
    ⛔ 예전처럼 `1..계약건수` 의 빈 번호를 메우면, 취소 3건이 그 범위 안에 있을 때
      미선정 칸이 1개만 생기는데 머리말은 '남은 자리 4건' 이라고 말한다 — 실제로
      그렇게 어긋나 있었다. 표의 미선정 칸 수와 '남은 자리' 는 **항상 같아야 한다.**
-   ⛔ 중간에 빠진 번호를 억지로 만들지 않는다. 표에 안 쓴 번호는 없는 자리다. */
-function padRows(rows, contract){
+   ⛔ 중간에 빠진 번호를 억지로 만들지 않는다. 표에 안 쓴 번호는 없는 자리다.
+   ⭐단, 수집기가 회차 번호를 몇 덩이 자리로 나눠 둔 회차(2026-11-04)는 자리 안 빈 번호(`open`)를
+     함께 준다 — 그 번호부터 쓰고, 모자라면 마지막 번호 다음부터 잇는다
+     (예: 1~10 · 11~15 자리 → 빈 줄 5·6·10 다음 16). 칸 수 규칙(계약 − 확보인원)은 같다. */
+function padRows(rows, contract, open){
   const c = cnum(contract);
   const out = (rows || []).slice();
   if (!c) return out;
   const HELD = r => r.status !== 'cancelled' && r.status !== 'unfilled'
                  && r.status !== 'empty';
   const alive = out.filter(HELD).length;
+  const have = new Set(out.map(r => parseInt(r.no, 10)).filter(n => n > 0));
+  const spots = Array.isArray(open)
+    ? [...new Set(open.map(Number).filter(n => Number.isInteger(n) && n > 0 && n < 1e5 && !have.has(n)))]
+        .sort((a, b) => a - b)
+    : [];
   let next = out.reduce((m, r) => Math.max(m, parseInt(r.no, 10) || 0), 0) + 1;
-  for (let i = alive; i < c; i++, next++){
-    out.push({ no: String(next), id:'', followers:'', reactions:'', visit:'',
-               xhs:'', xhs_title:'', dp:'', key:'pad-' + next, status:'unfilled' });
+  for (let i = alive; i < c; i++){
+    let no = spots.shift();
+    if (no === undefined){
+      while (have.has(next)) next++;
+      no = next++;
+    }
+    have.add(no);
+    out.push({ no: String(no), id:'', followers:'', reactions:'', visit:'',
+               xhs:'', xhs_title:'', dp:'', key:'pad-' + no, status:'unfilled' });
   }
   return out.sort((a, b) => (parseInt(a.no,10) || 1e6) - (parseInt(b.no,10) || 1e6));
+}
+
+/* 그 회차의 자리 안 빈 번호 — 회차 요약(s.open_nos) 또는 업체 요약의 회차 칸(s.rounds[n].open_nos).
+   자리를 나누지 않은 회차는 수집기가 안 싣는다 → [] (옛 빈 줄 규칙 그대로). */
+function openNos(round, s){
+  if (s && Array.isArray(s.open_nos)) return s.open_nos;
+  const r = s && s.rounds && round && s.rounds[String(round.n)];
+  return (r && Array.isArray(r.open_nos)) ? r.open_nos : [];
 }
 
 /* 칸 하나 = 표의 한 줄. 번호와 1:1로 맞물려서, 색만 보고도 어느 자리가 비었는지 안다.
@@ -658,7 +680,7 @@ function tableHtml(rows, round){
 /* 회차 하나의 본문 (진행 점수 · 계약 구성 · 미터 · 범례 · 성과 · 표). */
 function roundBody(round, rows, s){
   const contract = cnum(round.contract);
-  const padded = padRows(rows, contract);
+  const padded = padRows(rows, contract, openNos(round, s));
   // ⭐안내는 **그 회차 것**이다 (2026-09-18). 회차마다 제공 조건이 달라서
   //   맨 위에 한 벌로 내면 어느 회차 이야기인지 광고주가 알 수 없다.
   return guideHtml(round.offer, round.visit_hours)
