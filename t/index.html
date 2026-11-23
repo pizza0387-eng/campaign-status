@@ -291,6 +291,7 @@ function render(D){
   TODAY = dnum(D.asof);
   SHOW_TAIL = D.show_tail !== false;
   const G = D.groups || [];
+  const hasPhoto = G.some(g => g.kind === 'photo');
   const T = {target:0, sel:0, done:0, review:0, wait:0, cancel:0};
   G.forEach(g => Object.keys(T).forEach(k => { T[k] += (g.sum && g.sum[k]) || 0; }));
   const stamp = `${Number(D.asof.slice(5, 7))}/${Number(D.asof.slice(8, 10))} ${D.asof.slice(11, 16)} 기준`;
@@ -334,7 +335,7 @@ function render(D){
         <span><u class="m-wait"></u>글 대기 <b>${T.wait}</b></span>
         <span><u class="m-cancelled" style="border:1px solid var(--line-2)"></u>취소 <b>${T.cancel}</b></span>
       </div>
-      <div class="deal-note">포스팅 완료는 저희가 검수해서 통과한 글만 셉니다.</div>
+      <div class="deal-note">포스팅 완료는 저희가 검수해서 통과한 글만 셉니다.${hasPhoto ? ' 사진촬영은 촬영이 끝나면 완료로 셉니다.' : ''}</div>
     </section>
   </div>`;
 
@@ -356,6 +357,7 @@ function render(D){
   h += `
   <footer class="foot">
     <p>「포스팅 완료」는 글이 올라온 뒤 저희가 검수해서 통과한 글만 셉니다.</p>
+    ${hasPhoto ? '<p>사진촬영은 올릴 글이 없어서 촬영이 끝나면 「포스팅 완료」로 표시됩니다.</p>' : ''}
     <p>글이 올라왔어도 검수 전이거나 수정을 요청한 글은 「검수 중」으로 보이고, 검수가 끝나면 글 보기 단추가 열립니다.</p>
     <p>선정된 분이 취소하면 「취소」로 표시되고, 대신 선정된 분은 새 줄로 붙습니다.</p>
     <p>마감일이 늘어나면 바뀐 날짜로 표시됩니다.</p>
@@ -372,7 +374,7 @@ function col(g, gi){
   const open = g.rounds.filter(r => !r.closed);
   const shut = g.rounds.filter(r => r.closed);
   const shown = open.reduce((n, r) => n + cnt(r.members).sel, 0) + shut.reduce((n, r) => n + ((r.n && r.n.sel) || 0), 0);
-  const note = shown > s.sel ? '<div class="col-note">위 숫자는 진행 중인 계약(없으면 가장 최근 계약) 기준입니다. 다른 계약분은 아래 회차에서 확인해 주세요.</div>' : '';
+  const note = shown > s.sel ? '<div class="col-note">위 숫자는 진행 중이거나 아직 열린 회차가 있는 계약(없으면 가장 최근 계약) 기준입니다. 다른 계약분은 아래 회차에서 확인해 주세요.</div>' : '';
   return `
   <section class="col" id="col-${gi}" data-i="${gi}" aria-label="${esc(g.label)}">
     <div class="col-h">
@@ -440,7 +442,8 @@ function row(m, i, r, g){
   const st = STATE[m.st] || STATE.wait;
   const sub = [];
   if (m.st !== 'cancelled' && SHOW_TAIL && m.tail) sub.push(`<span>뒷번호 <span class="mono">${esc(m.tail)}</span></span>`);
-  if ((m.st === 'done' || m.st === 'review') && m.on) sub.push(`<span>${md(m.on)} 올림</span>`);
+  const shotDone = g.kind === 'photo' && m.st === 'done' && !m.url && !m.clip;
+  if ((m.st === 'done' || m.st === 'review') && m.on) sub.push(`<span>${md(m.on)} ${shotDone ? '완료' : '올림'}</span>`);
   if (m.st === 'wait'){
     if (m.ext) sub.push(`<span>${md(m.ext)}까지<span class="tag t-ext">연장</span></span>`);
     else if (r.deadline) sub.push(`<span>${md(r.deadline)}까지</span>`);
