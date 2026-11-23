@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<title>체험단 진행 현황</title>
+<style>
+:root{
+  --ground:#FBF9F9;  --surface:#FFFFFF;  --raise:#F5F1F2;
+  --ink:#191214;     --ink-2:#5C5054;    --ink-3:#7A6E71;
+  --line:#EBE3E4;    --line-2:#DED4D6;
+  --brand:#F0263C;   --brand-ink:#D31A2F;
+  --done:#0D7A5F;    --done-bg:#E4F1EC;
+  --wait:#96610F;    --wait-bg:#F7EEDD;
+  --plan:#2E6BB8;    --plan-bg:#E6EDF8;
+  --idle:#756A6D;    --idle-bg:#EFEAEB;
+  --void:#CFC5C7;
+  --shadow:0 1px 2px rgba(25,18,20,.04), 0 8px 24px -12px rgba(25,18,20,.10);
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#131011; --surface:#1C1618; --raise:#241D20;
+    --ink:#F2ECED;    --ink-2:#B4A8AB;  --ink-3:#9B8E91;
+    --line:#2C2326;   --line-2:#3A2F32;
+    --brand:#FF4257;  --brand-ink:#FF6B7C;
+    --done:#3FC79E;   --done-bg:#123329;
+    --wait:#E3A63C;   --wait-bg:#33280F;
+    --plan:#6DA4E8;   --plan-bg:#122336;
+    --idle:#9B8E91;   --idle-bg:#272022;
+    --void:#403538;
+    --shadow:none;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; padding:0; background:var(--ground); color:var(--ink);
+  font:400 15px/1.62 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic","맑은 고딕",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums}
+.wrap{max-width:1440px; margin:0 auto; padding:22px 20px 72px}
+#app{display:flex; flex-direction:column; gap:14px; min-width:0}
+
+/* 머리말 */
+.head{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:6px 16px}
+.who h1{margin:0; font-size:23px; font-weight:800; letter-spacing:-.035em; overflow-wrap:anywhere}
+.who .mark{color:var(--brand-ink)}
+.stamp{font-size:12.5px; color:var(--ink-3); white-space:nowrap}
+
+/* 위 두 상자 */
+.top{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); align-items:stretch}
+.soon{background:var(--surface); border:1px solid var(--brand); border-radius:var(--radius);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 12%,transparent); padding:14px 18px;
+  display:flex; flex-direction:column; gap:8px; min-width:0}
+.soon-h{font-size:13px; font-weight:700; color:var(--brand-ink)}
+.soon-l{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px}
+.soon-l li{display:flex; flex-wrap:wrap; align-items:baseline; gap:3px 10px; font-size:14px;
+  margin:0 -8px; padding:5px 8px; border-radius:9px; cursor:pointer; overflow-wrap:anywhere}
+.soon-l li:hover, .soon-l li:focus-visible{background:var(--raise); outline:none}
+.soon-l li.more{cursor:default; color:var(--ink-3); font-size:12.5px}
+.soon-l li.more:hover{background:none}
+.soon-l .g{color:var(--ink-3); font-size:12.5px; font-weight:600}
+.soon-d{margin-left:auto; font-size:13px; color:var(--ink-2); white-space:nowrap}
+.soon-d em{font-style:normal; font-weight:700; color:var(--brand-ink)}
+
+.deal{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:18px 20px 16px; display:flex; flex-direction:column; gap:12px; min-width:0}
+.deal-top{display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px 22px}
+.score{display:flex; align-items:baseline; gap:9px; line-height:1; flex-wrap:wrap}
+.score .n{font-size:50px; font-weight:800; letter-spacing:-.05em; color:var(--done)}
+.score .of{font-size:22px; font-weight:600; color:var(--ink-3)}
+.score .cap{font-size:13px; color:var(--ink-2); font-weight:700; padding-bottom:3px}
+.spec{display:flex; gap:6px 16px; flex-wrap:wrap; justify-content:flex-end; font-size:13px; color:var(--ink-2)}
+.spec b{font-weight:700; color:var(--ink)}
+.meter{display:flex; gap:3px}
+.meter i{min-width:0; height:12px; border-radius:3px; background:var(--void); display:block}
+.m-done{background:var(--done)!important}
+.m-review{background:var(--plan)!important}
+.m-wait{background:var(--wait)!important}
+.m-cancelled{background:repeating-linear-gradient(135deg,var(--void),var(--void) 2px,transparent 2px,transparent 4px)!important}
+.keys{display:flex; flex-wrap:wrap; gap:5px 16px; font-size:12.5px; color:var(--ink-2)}
+.keys span{display:inline-flex; align-items:center; gap:6px; white-space:nowrap}
+.keys u, .col-sum u{text-decoration:none; width:9px; height:9px; border-radius:2px; flex:none; display:inline-block}
+.keys b{font-weight:700; color:var(--ink)}
+.deal-note{font-size:12.5px; color:var(--ink-3)}
+
+/* 종류 칸 */
+.tabs{position:sticky; top:0; z-index:5; background:var(--ground); margin:0 -20px; padding:10px 20px;
+  display:flex; flex-direction:column; gap:7px; border-bottom:1px solid transparent; transition:box-shadow .15s}
+.tabs.stuck{border-bottom-color:var(--line); box-shadow:0 8px 16px -12px rgba(25,18,20,.28)}
+.tabs-h{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--ink-3)}
+.arrows{display:flex; gap:6px; visibility:hidden}
+.arrows button{font:inherit; width:32px; height:30px; border-radius:9px; border:1px solid var(--line-2);
+  background:var(--surface); color:var(--ink-2); cursor:pointer; font-size:16px; line-height:1}
+.arrows button:disabled{opacity:.35; cursor:default}
+.chips{display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding:2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:1 1 0; min-width:118px; font:inherit; color:var(--ink); text-align:left; cursor:pointer;
+  background:var(--surface); border:1px solid var(--line-2); border-radius:12px; padding:9px 12px 10px;
+  display:flex; flex-direction:column; gap:5px}
+.chip b{font-size:14px; font-weight:800; letter-spacing:-.02em; white-space:nowrap}
+.chip .cn{font-size:12px; color:var(--ink-2); white-space:nowrap}
+.chip .cn em{font-style:normal; font-weight:800; color:var(--done); font-size:13px}
+.chip.on{border-color:var(--brand); box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 22%,transparent)}
+.bar{display:flex; height:5px; border-radius:3px; overflow:hidden; background:var(--void)}
+.bar i{display:block; height:100%; flex:none}
+
+/* 종류별 판 */
+.board{position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:calc((100% - 14px) / 2);
+  gap:14px; align-items:start; overflow-x:auto; scroll-snap-type:x mandatory; overscroll-behavior-x:contain;
+  padding:2px 2px 10px}
+.board.n1{grid-auto-columns:minmax(0,860px)}
+@media (min-width:1240px){ .board:not(.n1):not(.n2){grid-auto-columns:calc((100% - 28px) / 3)} }
+.col{scroll-snap-align:start; min-width:0; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; transition:box-shadow .2s; container-type:inline-size}
+.col.flash{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 35%,transparent)}
+.col-h{padding:15px 16px 13px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+.col-h h2{margin:0; font-size:18px; font-weight:800; letter-spacing:-.03em}
+.col-sum{display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12.5px; color:var(--ink-2)}
+.col-sum span{display:inline-flex; align-items:center; gap:5px; white-space:nowrap}
+.col-sum b{color:var(--ink); font-weight:700}
+.col-note{font-size:12px; color:var(--ink-3); line-height:1.45; word-break:keep-all}
+.col-empty{padding:22px 16px; color:var(--ink-3); font-size:13.5px}
+
+/* 회차 */
+.rd{border-top:1px solid var(--line)}
+.col-h + .rd{border-top:none}
+.rd>summary{cursor:pointer; list-style:none; padding:12px 16px; display:flex; flex-wrap:wrap; align-items:center;
+  gap:6px 8px; font-size:13px}
+.rd>summary::-webkit-details-marker{display:none}
+.rd>summary::after{content:'펼치기'; margin-left:auto; font-size:12px; color:var(--ink-3)}
+.rd[open]>summary::after{content:'접기'}
+.rd.on>summary{box-shadow:inset 3px 0 0 var(--brand)}
+.rd>summary b{font-size:15px; font-weight:800}
+.rtag{font-size:12px; font-weight:700; color:var(--ink-2); background:var(--raise); padding:1px 7px; border-radius:6px; white-space:nowrap}
+.now{display:inline-flex; padding:1px 8px; border-radius:999px; background:var(--brand); color:#fff; font-size:11.5px; font-weight:700; white-space:nowrap}
+.now.rv,.now.rc{background:var(--plan-bg); color:var(--plan)}
+.now.end{background:var(--idle-bg); color:var(--ink-3)}
+.dim{color:var(--ink-3); font-size:12.5px}
+.per{display:inline-flex; align-items:baseline; gap:5px; padding:2px 9px; border-radius:999px;
+  background:var(--raise); color:var(--ink-2); font-size:12px; white-space:nowrap}
+.per.near{background:var(--wait-bg); color:var(--wait); font-weight:700}
+.per.end{background:var(--idle-bg); color:var(--ink-3)}
+.rd-b{padding:0 16px 15px; display:flex; flex-direction:column; gap:11px}
+
+/* 회차 안내 */
+.guide{margin:0; display:grid; gap:8px; background:var(--raise); border-radius:11px; padding:12px 13px}
+.guide>div{display:grid; grid-template-columns:98px minmax(0,1fr); gap:2px 10px; align-items:baseline}
+.guide dt{font-size:12px; font-weight:700; color:var(--ink-3)}
+.guide dd{margin:0; font-size:13.5px; line-height:1.55; white-space:pre-line; overflow-wrap:anywhere}
+.chg{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; background:var(--wait-bg);
+  color:var(--wait); font-size:11px; font-weight:700; white-space:nowrap; vertical-align:1px}
+.was{color:var(--ink-3); font-size:12.5px}
+
+/* 명단 */
+.ml{list-style:none; margin:0; padding:0; border:1px solid var(--line); border-radius:11px}
+.ml-empty{border:1px dashed var(--line-2); border-radius:11px; padding:14px; font-size:13px; color:var(--ink-3); text-align:center}
+.m{display:grid; grid-template-columns:20px minmax(0,1fr) auto; gap:2px 10px; padding:10px 12px;
+  border-top:1px solid var(--line); align-items:start}
+.m:first-child{border-top:none}
+.m .no{font-size:11.5px; color:var(--ink-3); padding-top:3px; text-align:right}
+.idn{font-weight:650; letter-spacing:-.01em; font-size:14.5px; overflow-wrap:anywhere}
+.idn small{font-weight:500; color:var(--ink-2); font-size:13px}
+.sub{display:flex; flex-wrap:wrap; align-items:center; gap:2px 12px; font-size:12.5px; color:var(--ink-2); margin-top:2px}
+.note{font-size:12px; color:var(--ink-3); margin-top:3px; line-height:1.45; word-break:keep-all; overflow-wrap:anywhere}
+.note.fix{color:var(--plan)}
+.ms{display:flex; flex-direction:column; align-items:flex-end; gap:6px}
+.m.s-cancelled{color:var(--ink-3)}
+.m.s-cancelled .idn{font-weight:500; text-decoration:line-through; text-decoration-color:var(--ink-3)}
+.m.s-cancelled .idn small{color:var(--ink-3)}
+.tag{display:inline-block; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:700; white-space:nowrap}
+.t-done{background:var(--done-bg); color:var(--done)}
+.t-review{background:var(--plan-bg); color:var(--plan)}
+.t-wait{background:var(--wait-bg); color:var(--wait)}
+.t-cancelled{background:var(--idle-bg); color:var(--idle)}
+.t-ext{background:transparent; color:var(--wait); border:1px solid currentColor; padding:0 7px; margin-left:5px; font-size:11px}
+.go{display:inline-flex; align-items:center; padding:5px 11px; border-radius:8px; background:var(--brand-ink); color:#fff;
+  text-decoration:none; font-size:12px; font-weight:700; white-space:nowrap}
+.go.alt{background:transparent; color:var(--ink-2); border:1px solid var(--line-2)}
+.btns{display:flex; flex-wrap:wrap; justify-content:flex-end; gap:5px}
+@container (min-width:430px){ .ms{flex-direction:row; align-items:center; gap:8px} }
+
+/* 닫힌 회차 */
+.shut{border-top:1px solid var(--line); background:var(--raise); padding:10px 16px 12px; display:flex; flex-direction:column; gap:6px}
+.shut-l{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px}
+.shut-l li{display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 8px; font-size:12.5px; color:var(--ink-3)}
+.shut-l b{font-size:13px; font-weight:700; color:var(--ink-2)}
+.shut-l .nums{margin-left:auto; white-space:nowrap}
+.shut-note{font-size:12px; color:var(--ink-3); line-height:1.45; word-break:keep-all}
+.shut details>summary{cursor:pointer; font-size:12.5px; font-weight:700; color:var(--ink-2); padding:2px 0}
+.shut details[open]>summary{margin-bottom:5px}
+
+.xhs{display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface);
+  border:1px solid var(--line); border-radius:12px; padding:12px 16px; color:var(--ink); text-decoration:none; font-size:14px; font-weight:700}
+.xhs span{color:var(--ink-3); font-weight:500; font-size:13px; white-space:nowrap}
+.foot{font-size:12px; color:var(--ink-3); line-height:1.75; padding:4px 2px 0}
+.foot p{margin:0}
+
+/* 안내 화면 */
+.msg{max-width:440px; margin:12vh auto 0; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:26px 24px; text-align:center}
+.msg h1{margin:0 0 8px; font-size:18px; font-weight:800; letter-spacing:-.02em}
+.msg p{margin:0; font-size:14px; color:var(--ink-2); word-break:keep-all}
+.msg button{margin-top:16px; font:inherit; font-size:14px; font-weight:700; padding:9px 18px; border-radius:9px; border:none;
+  background:var(--brand-ink); color:#fff; cursor:pointer}
+
+@media (max-width:680px){
+  .wrap{padding:16px 16px 56px}
+  #app{gap:12px}
+  .who h1{font-size:20px}
+  .score .n{font-size:44px}
+  .spec{justify-content:flex-start}
+  .tabs{margin:0 -16px; padding:8px 16px}
+  .chip{min-width:104px; padding:8px 10px 9px}
+  .board{grid-auto-columns:calc(100% - 30px); gap:10px; margin:0 -16px; padding:2px 16px 10px; scroll-padding-inline:16px}
+  .board.n1{grid-auto-columns:100%}
+  .guide>div{grid-template-columns:1fr; gap:0}
+  .go{padding:7px 13px; font-size:13px}
+}
+@media (prefers-reduced-motion: reduce){ .tabs,.col{transition:none} }
+</style>
+</head>
+<body>
+<div class="wrap"><div id="app" aria-live="polite"><section class="msg"><p>불러오는 중입니다</p></section></div></div>
+
+<script>
+const API_URL = 'https://ncpxikttgkgkxgiknrhx.supabase.co';
+const API_KEY = 'sb_publishable_TpiIEpjsh8mD3RsCbyoJRQ_hVwCcGQE';
+const WK = '일월화수목금토';
+const VIDEO = new Set(['clip', 'reels_micro', 'reels_mega']);
+const SHOW_CLOSED = 3;
+const SHOW_SOON = 5;
+const STATE = {
+  done: ['t-done', '포스팅 완료'], review: ['t-review', '검수 중'],
+  wait: ['t-wait', '글 대기'], cancelled: ['t-cancelled', '취소']
+};
+let TODAY = 0;
+let SHOW_TAIL = true;
+
+const app = document.getElementById('app');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ymd = s => String(s).slice(0, 10).split('-').map(Number);
+const dnum = s => { const [y, m, d] = ymd(s); return Date.UTC(y, m - 1, d) / 86400000; };
+const md = s => {
+  if (!s) return '';
+  const [y, m, d] = ymd(s);
+  return `${m}/${d}(${WK[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]})`;
+};
+const dday = s => dnum(s) - TODAY;
+const dtxt = n => n > 0 ? `D-${n}` : n === 0 ? '오늘' : '지남';
+const safeUrl = u => {
+  if (!u) return null;
+  try {
+    const x = new URL(u);
+    return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : null;
+  } catch (e) { return null; }
+};
+const link = (label, url, alt) => {
+  const href = safeUrl(url);
+  return href ? `<a class="go${alt ? ' alt' : ''}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : '';
+};
+const person = m => m.name ? (m.nick ? `${m.name}(${m.nick})` : m.name) : (m.nick || '이름 미등록');
+function cnt(list){
+  const c = {done:0, review:0, wait:0, cancelled:0};
+  (list || []).forEach(m => { if (m.st in c) c[m.st]++; });
+  c.sel = c.done + c.review + c.wait;
+  return c;
+}
+const bar = s => s.sel
+  ? ['done', 'review', 'wait'].map(k => s[k] ? `<i class="m-${k}" style="width:${(s[k] / s.sel * 100).toFixed(2)}%"></i>` : '').join('')
+  : '';
+function meter(s){
+  const parts = [['done', s.done], ['review', s.review], ['wait', s.wait], ['cancelled', s.cancel]].filter(p => p[1] > 0);
+  if (!parts.length) return '<i style="flex:1 1 0"></i>';
+  return parts.map(p => `<i class="m-${p[0]}" style="flex:${p[1]} 1 0"></i>`).join('');
+}
+function roundState(r){
+  const c = cnt(r.members);
+  if (c.wait) return 'live';
+  if (c.review) return 'rv';
+  if (c.done) return 'end';
+  if (r.zero) return 'zero';
+  if (c.cancelled) return r.deadline && dday(r.deadline) < 0 ? 'end' : 'recruit';
+  return 'recruit';
+}
+
+function render(D){
+  TODAY = dnum(D.asof);
+  SHOW_TAIL = D.show_tail !== false;
+  const G = D.groups || [];
+  const T = {target:0, sel:0, done:0, review:0, wait:0, cancel:0};
+  G.forEach(g => Object.keys(T).forEach(k => { T[k] += (g.sum && g.sum[k]) || 0; }));
+  const stamp = `${Number(D.asof.slice(5, 7))}/${Number(D.asof.slice(8, 10))} ${D.asof.slice(11, 16)} 기준`;
+
+  const soon = [];
+  G.forEach((g, gi) => g.rounds.forEach(r => {
+    if (r.closed) return;
+    const name = [g.label, r.tag, r.title].filter(Boolean).join(' ');
+    const w = r.members.filter(m => m.st === 'wait' && !m.ext).length;
+    if (w && r.deadline && dday(r.deadline) >= 0) soon.push({gi, d:r.deadline, g:name, t:`글 대기 ${w}명`});
+    r.members.filter(m => m.st === 'wait' && m.ext && dday(m.ext) >= 0)
+      .forEach(m => soon.push({gi, d:m.ext, g:name, t:`${person(m)} 연장`}));
+  }));
+  soon.sort((a, b) => a.d.localeCompare(b.d));
+  const soonShown = soon.slice(0, SHOW_SOON);
+
+  let h = `
+  <header class="head">
+    <div class="who"><h1><span class="mark">${esc(D.store)}</span> 체험단 진행 현황</h1></div>
+    <span class="stamp">${esc(stamp)}</span>
+  </header>
+  <div class="top">`;
+
+  if (soon.length) h += `
+    <section class="soon"><div class="soon-h">다가오는 포스팅 마감</div><ul class="soon-l">
+      ${soonShown.map(s => `<li data-i="${s.gi}" tabindex="0" role="button"><span class="g">${esc(s.g)}</span><span>${esc(s.t)}</span>
+        <span class="soon-d">${md(s.d)}까지 <em>${dtxt(dday(s.d))}</em></span></li>`).join('')}
+      ${soon.length > SHOW_SOON ? `<li class="more">외 ${soon.length - SHOW_SOON}건은 아래 회차에서 확인해 주세요</li>` : ''}
+    </ul></section>`;
+
+  h += `
+    <section class="deal">
+      <div class="deal-top">
+        <div class="score"><span class="n" id="score-done">${T.done}</span><span class="of">/ <span id="score-sel">${T.sel}</span>명</span><span class="cap">포스팅 완료</span></div>
+        <div class="spec"><span>모집 목표 <b>${T.target}명</b></span><span>검수 중 <b>${T.review}명</b></span><span>글 대기 <b>${T.wait}명</b></span><span>취소 <b>${T.cancel}명</b></span></div>
+      </div>
+      <div class="meter" aria-hidden="true">${meter(T)}</div>
+      <div class="keys">
+        <span><u class="m-done"></u>포스팅 완료 <b>${T.done}</b></span>
+        <span><u class="m-review"></u>검수 중 <b>${T.review}</b></span>
+        <span><u class="m-wait"></u>글 대기 <b>${T.wait}</b></span>
+        <span><u class="m-cancelled" style="border:1px solid var(--line-2)"></u>취소 <b>${T.cancel}</b></span>
+      </div>
+      <div class="deal-note">포스팅 완료는 저희가 검수해서 통과한 글만 셉니다.</div>
+    </section>
+  </div>`;
+
+  if (G.length > 1) h += `
+  <nav class="tabs" id="tabs" aria-label="체험단 종류">
+    <div class="tabs-h"><span>체험단 ${G.length}종류, 옆으로 넘겨 보세요</span>
+      <span class="arrows" id="arrows"><button type="button" id="prev" aria-label="앞 체험단">&#8249;</button><button type="button" id="next" aria-label="다음 체험단">&#8250;</button></span></div>
+    <div class="chips">${G.map((g, gi) => `
+      <button class="chip" type="button" data-i="${gi}" aria-controls="col-${gi}">
+        <b>${esc(String(g.label).replace(/ 체험단$/, ''))}</b><span class="cn">완료 <em>${g.sum.done}</em> / ${g.sum.sel}명</span>
+        <span class="bar">${bar(g.sum)}</span></button>`).join('')}</div>
+  </nav>`;
+
+  h += `<div class="board n${G.length}" id="board">${G.map((g, gi) => col(g, gi)).join('')}</div>`;
+
+  const xhs = safeUrl(D.xhs_url);
+  if (xhs) h += `<a class="xhs" href="${esc(xhs)}" target="_blank" rel="noopener noreferrer">샤오홍슈 체험단 현황 보기<span>열기</span></a>`;
+
+  h += `
+  <footer class="foot">
+    <p>「포스팅 완료」는 글이 올라온 뒤 저희가 검수해서 통과한 글만 셉니다.</p>
+    <p>글이 올라왔어도 검수 전이거나 수정을 요청한 글은 「검수 중」으로 보이고, 검수가 끝나면 글 보기 단추가 열립니다.</p>
+    <p>선정된 분이 취소하면 「취소」로 표시되고, 대신 선정된 분은 새 줄로 붙습니다.</p>
+    <p>마감일이 늘어나면 바뀐 날짜로 표시됩니다.</p>
+    <p>선정 명단은 하루 세 번(09:50, 13:50, 17:50), 올라온 글 주소는 하루 두 번(08:45, 20:45) 자동으로 확인합니다. 검수 완료, 취소, 연장은 처리하는 즉시 반영됩니다.</p>
+    <p>회차별 명단은 포스팅 최종 마감 30일 뒤 닫힙니다. 닫힌 회차의 결과는 보고서로 확인해 주세요.</p>
+    <p>궁금하신 점은 담당자 카카오톡으로 편하게 말씀해 주세요.</p>
+  </footer>`;
+  app.innerHTML = h;
+  bind();
+}
+
+function col(g, gi){
+  const s = g.sum;
+  const open = g.rounds.filter(r => !r.closed);
+  const shut = g.rounds.filter(r => r.closed);
+  const shown = open.reduce((n, r) => n + cnt(r.members).sel, 0) + shut.reduce((n, r) => n + ((r.n && r.n.sel) || 0), 0);
+  const note = shown > s.sel ? '<div class="col-note">위 숫자는 진행 중인 계약(없으면 가장 최근 계약) 기준입니다. 다른 계약분은 아래 회차에서 확인해 주세요.</div>' : '';
+  return `
+  <section class="col" id="col-${gi}" data-i="${gi}" aria-label="${esc(g.label)}">
+    <div class="col-h">
+      <h2>${esc(g.label)}</h2>
+      <div class="col-sum">
+        <span><u class="m-done"></u>포스팅 완료 <b>${s.done}</b></span>
+        <span><u class="m-review"></u>검수 중 <b>${s.review}</b></span>
+        <span><u class="m-wait"></u>글 대기 <b>${s.wait}</b></span>
+        ${s.cancel ? `<span>취소 <b>${s.cancel}</b></span>` : ''}
+      </div>
+      ${note}
+    </div>
+    ${g.rounds.length ? open.map(r => round(g, r)).join('') : '<div class="col-empty">모집 준비 중입니다</div>'}
+    ${shut.length ? closedBlock(shut) : ''}
+  </section>`;
+}
+
+function round(g, r){
+  const c = cnt(r.members);
+  const state = roundState(r);
+  const dd = r.deadline ? dday(r.deadline) : null;
+  const pill = {
+    live: '<span class="now">진행 중</span>', rv: '<span class="now rv">검수 중</span>',
+    end: '<span class="now end">끝남</span>', recruit: '<span class="now rc">모집 중</span>',
+    zero: '<span class="now end">선정 0명</span>'
+  }[state];
+  const per = !r.deadline ? ''
+    : state === 'live' ? `<span class="per${dd <= 3 ? ' near' : ''}">마감 ${md(r.deadline)} ${dtxt(dd)}</span>`
+    : `<span class="per end">마감 ${md(r.deadline)}</span>`;
+  const when = [r.apply && r.apply[0] ? md(r.apply[0]) : '', r.apply && r.apply[1] ? md(r.apply[1]) : ''].filter(Boolean).join(' ~ ');
+  const period = [when, r.pick ? `선정 발표 ${md(r.pick)}` : ''].filter(Boolean).join(', ');
+  const rows = [];
+  if (r.offer) rows.push(['제공내역', `${esc(r.offer)}${r.offerWas ? `<span class="chg">이번 회차부터 바뀜</span>\n<span class="was">전 회차: ${esc(String(r.offerWas).replace(/\n/g, ' / '))}</span>` : ''}`]);
+  if (r.visit) rows.push(['방문 가능 시간', esc(r.visit)]);
+  if (r.resv) rows.push(['예약 받는 번호', esc(r.resv)]);
+  if (r.target != null) rows.push(['모집 인원', `${esc(r.target)}명`]);
+  if (period) rows.push(['모집 기간', esc(period)]);
+  if (r.deadline) rows.push(['포스팅 마감', `${md(r.deadline)}${r.base ? ` <span class="was">(원래 ${md(r.base)}에서 회차 전체 연장)</span>` : ''}`]);
+  const empty = state === 'zero' ? '이 회차는 선정 0명으로 마감했습니다.'
+    : state === 'recruit' ? '선정 명단이 나오면 여기에 표시됩니다' : '선정된 분이 없습니다';
+  return `
+    <details class="rd${state === 'live' ? ' on' : ''}" data-state="${state}"${state !== 'end' && state !== 'zero' ? ' open' : ''}>
+      <summary>${r.tag ? `<span class="rtag">${esc(r.tag)}</span>` : ''}<b>${esc(r.title)}</b>${pill}${per}
+        <span class="dim">선정 ${c.sel} / 완료 ${c.done}${state === 'rv' ? ` / 검수 중 ${c.review}` : ''}</span></summary>
+      <div class="rd-b">
+        <dl class="guide">${rows.map(x => `<div><dt>${x[0]}</dt><dd>${x[1]}</dd></div>`).join('')}</dl>
+        ${r.members.length ? `<ul class="ml">${r.members.map((m, i) => row(m, i, r, g)).join('')}</ul>` : `<div class="ml-empty">${empty}</div>`}
+      </div>
+    </details>`;
+}
+
+function buttons(m, g){
+  if (m.st === 'cancelled') return '';
+  if (m.st === 'done'){
+    let b;
+    if (g.kind === 'blog_clip') b = link('글 보기', m.url) + link('클립 보기', m.clip);
+    else if (VIDEO.has(g.kind)) b = link('영상 보기', m.url || m.clip);
+    else b = link('글 보기', m.url || m.clip);
+    if (b) return b;
+  }
+  return link(g.ch, m.ch_url, true);
+}
+
+function row(m, i, r, g){
+  const st = STATE[m.st] || STATE.wait;
+  const sub = [];
+  if (m.st !== 'cancelled' && SHOW_TAIL && m.tail) sub.push(`<span>뒷번호 <span class="mono">${esc(m.tail)}</span></span>`);
+  if ((m.st === 'done' || m.st === 'review') && m.on) sub.push(`<span>${md(m.on)} 올림</span>`);
+  if (m.st === 'wait'){
+    if (m.ext) sub.push(`<span>${md(m.ext)}까지<span class="tag t-ext">연장</span></span>`);
+    else if (r.deadline) sub.push(`<span>${md(r.deadline)}까지</span>`);
+  }
+  let note = '';
+  if (m.st === 'review') note = m.fix
+    ? '<div class="note fix">수정을 요청했습니다. 고친 글을 다시 확인합니다</div>'
+    : '<div class="note">글이 올라와 저희가 확인하고 있습니다</div>';
+  if (m.siteless) note = '<div class="note">체험단 사이트 미등록, 블로그에서 확인한 글</div>';
+  const who = m.name
+    ? `${esc(m.name)}${m.nick ? `<small>(${esc(m.nick)})</small>` : ''}`
+    : esc(m.nick || '이름 미등록');
+  const btn = buttons(m, g);
+  return `
+          <li class="m s-${esc(m.st)}">
+            <span class="no mono">${i + 1}</span>
+            <div class="mi"><div class="idn">${who}</div>${sub.length ? `<div class="sub">${sub.join('')}</div>` : ''}${note}</div>
+            <div class="ms"><span class="tag ${st[0]}">${st[1]}</span>${btn ? `<span class="btns">${btn}</span>` : ''}</div>
+          </li>`;
+}
+
+function closedRow(r){
+  const when = [r.apply && r.apply[0] ? md(r.apply[0]) : '', r.apply && r.apply[1] ? md(r.apply[1]) : ''].filter(Boolean).join(' ~ ');
+  const n = r.n || {sel:0, done:0, cancel:0};
+  return `<li>${r.tag ? `<span class="rtag">${esc(r.tag)}</span>` : ''}<b>${esc(r.title)}</b>
+    <span>${when ? `모집 ${when}, ` : ''}마감 ${md(r.deadline)}</span>
+    <span class="nums">${r.zero ? '선정 0명으로 마감' : `선정 ${n.sel}, 포스팅 완료 ${n.done}, 취소 ${n.cancel}`}</span></li>`;
+}
+
+function closedBlock(list){
+  const head = list.slice(0, SHOW_CLOSED);
+  const rest = list.slice(SHOW_CLOSED);
+  return `
+    <div class="shut">
+      <ul class="shut-l">${head.map(closedRow).join('')}</ul>
+      ${rest.length ? `<details><summary>이전 회차 ${rest.length}개</summary><ul class="shut-l">${rest.map(closedRow).join('')}</ul></details>` : ''}
+      <div class="shut-note">마감 후 30일이 지나 명단은 닫혔습니다. 결과는 보고서를 확인해 주세요.</div>
+    </div>`;
+}
+
+function bind(){
+  const board = document.getElementById('board');
+  if (!board) return;
+  const cols = [...board.querySelectorAll('.col')];
+  const chips = [...document.querySelectorAll('.chip')];
+  const tabs = document.getElementById('tabs');
+  const prev = document.getElementById('prev'), next = document.getElementById('next'), arrows = document.getElementById('arrows');
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const how = calm ? 'auto' : 'smooth';
+  const step = () => cols.length > 1 ? cols[1].offsetLeft - cols[0].offsetLeft : 1;
+  const current = () => Math.round(board.scrollLeft / step());
+  let last = 0;
+
+  function lift(){
+    const y = board.getBoundingClientRect().top + window.scrollY - (tabs ? tabs.offsetHeight : 0) - 6;
+    if (window.scrollY > y + 4) window.scrollTo({top:y, behavior:how});
+  }
+  function goTo(i){
+    i = Math.max(0, Math.min(cols.length - 1, i));
+    const c = cols[i];
+    board.scrollTo({left:c.offsetLeft - cols[0].offsetLeft, behavior:how});
+    lift();
+    c.classList.add('flash');
+    setTimeout(() => c.classList.remove('flash'), 700);
+    last = i;
+  }
+  function paint(){
+    const L = board.getBoundingClientRect();
+    cols.forEach((c, i) => {
+      const R = c.getBoundingClientRect();
+      const seen = Math.max(0, Math.min(R.right, L.right) - Math.max(R.left, L.left)) / R.width;
+      if (chips[i]) chips[i].classList.toggle('on', seen >= 0.6);
+    });
+    if (!arrows) return;
+    const over = board.scrollWidth > board.clientWidth + 4 && window.innerWidth > 680;
+    arrows.style.visibility = over ? 'visible' : 'hidden';
+    prev.disabled = board.scrollLeft < 4;
+    next.disabled = board.scrollLeft + board.clientWidth > board.scrollWidth - 4;
+  }
+  chips.forEach(c => c.addEventListener('click', () => goTo(+c.dataset.i)));
+  document.querySelectorAll('.soon-l li[data-i]').forEach(li => {
+    li.addEventListener('click', () => goTo(+li.dataset.i));
+    li.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); goTo(+li.dataset.i); } });
+  });
+  if (prev) prev.addEventListener('click', () => goTo(current() - 1));
+  if (next) next.addEventListener('click', () => goTo(current() + 1));
+  let t = 0;
+  board.addEventListener('scroll', () => {
+    paint();
+    clearTimeout(t);
+    t = setTimeout(() => { const i = current(); if (i !== last){ last = i; lift(); } }, 160);
+  }, {passive:true});
+  window.addEventListener('scroll', () => { if (tabs) tabs.classList.toggle('stuck', tabs.getBoundingClientRect().top <= 0.5); }, {passive:true});
+  window.addEventListener('resize', paint);
+  paint();
+}
+
+function fail(title, text, retry){
+  app.innerHTML = `<section class="msg" data-fail="${retry ? 'temp' : 'closed'}"><h1>${esc(title)}</h1><p>${esc(text)}</p>${retry ? '<button type="button" id="retry">다시 불러오기</button>' : ''}</section>`;
+  if (retry) document.getElementById('retry').addEventListener('click', () => location.reload());
+}
+const failClosed = () => fail('이 링크는 열 수 없습니다', '주소가 바뀌었거나 닫힌 링크입니다. 담당자에게 새 링크를 요청해 주세요.', false);
+const failTemp = () => fail('잠시 불러오지 못했습니다', '잠시 후 다시 시도해 주세요. 계속 안 열리면 담당자에게 말씀해 주세요.', true);
+
+async function boot(){
+  const t = new URLSearchParams(location.hash.slice(1)).get('t');
+  if (!t || !/^[A-Za-z0-9_-]{43}$/.test(t)){ failClosed(); return; }
+  if (API_URL.startsWith('{{') || API_KEY.startsWith('{{')){ failTemp(); return; }
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const r = await fetch(API_URL + '/rest/v1/rpc/trial_client_page', {
+      method: 'POST',
+      headers: { apikey: API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t }),
+      cache: 'no-store',
+      referrerPolicy: 'no-referrer',
+      signal: ctl.signal
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (!d || d.ok !== true){ failClosed(); return; }
+    render(d);
+  } catch (e) {
+    failTemp();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+window.addEventListener('hashchange', () => location.reload());
+boot();
+</script>
+</body>
+</html>
