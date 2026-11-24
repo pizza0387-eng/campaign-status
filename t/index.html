@@ -50,7 +50,7 @@ body{margin:0; padding:0; background:var(--ground); color:var(--ink);
 .who .mark{color:var(--brand-ink)}
 .stamp{font-size:12.5px; color:var(--ink-3); white-space:nowrap}
 
-/* 위 두 상자 */
+/* 맨 위 상자 */
 .top{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); align-items:stretch}
 .soon{background:var(--surface); border:1px solid var(--brand); border-radius:var(--radius);
   box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 12%,transparent); padding:14px 18px;
@@ -65,27 +65,6 @@ body{margin:0; padding:0; background:var(--ground); color:var(--ink);
 .soon-l .g{color:var(--ink-3); font-size:12.5px; font-weight:600}
 .soon-d{margin-left:auto; font-size:13px; color:var(--ink-2); white-space:nowrap}
 .soon-d em{font-style:normal; font-weight:700; color:var(--brand-ink)}
-
-.deal{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
-  box-shadow:var(--shadow); padding:18px 20px 16px; display:flex; flex-direction:column; gap:12px; min-width:0}
-.deal-top{display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px 22px}
-.score{display:flex; align-items:baseline; gap:9px; line-height:1; flex-wrap:wrap}
-.score .n{font-size:50px; font-weight:800; letter-spacing:-.05em; color:var(--done)}
-.score .of{font-size:22px; font-weight:600; color:var(--ink-3)}
-.score .cap{font-size:13px; color:var(--ink-2); font-weight:700; padding-bottom:3px}
-.spec{display:flex; gap:6px 16px; flex-wrap:wrap; justify-content:flex-end; font-size:13px; color:var(--ink-2)}
-.spec b{font-weight:700; color:var(--ink)}
-.meter{display:flex; gap:3px}
-.meter i{min-width:0; height:12px; border-radius:3px; background:var(--void); display:block}
-.m-done{background:var(--done)!important}
-.m-review{background:var(--plan)!important}
-.m-wait{background:var(--wait)!important}
-.m-cancelled{background:repeating-linear-gradient(135deg,var(--void),var(--void) 2px,transparent 2px,transparent 4px)!important}
-.keys{display:flex; flex-wrap:wrap; gap:5px 16px; font-size:12.5px; color:var(--ink-2)}
-.keys span{display:inline-flex; align-items:center; gap:6px; white-space:nowrap}
-.keys u, .col-sum u{text-decoration:none; width:9px; height:9px; border-radius:2px; flex:none; display:inline-block}
-.keys b{font-weight:700; color:var(--ink)}
-.deal-note{font-size:12.5px; color:var(--ink-3)}
 
 /* 종류 칸 */
 .tabs{position:sticky; top:0; z-index:5; background:var(--ground); margin:0 -20px; padding:10px 20px;
@@ -102,11 +81,7 @@ body{margin:0; padding:0; background:var(--ground); color:var(--ink);
   background:var(--surface); border:1px solid var(--line-2); border-radius:12px; padding:9px 12px 10px;
   display:flex; flex-direction:column; gap:5px}
 .chip b{font-size:14px; font-weight:800; letter-spacing:-.02em; white-space:nowrap}
-.chip .cn{font-size:12px; color:var(--ink-2); white-space:nowrap}
-.chip .cn em{font-style:normal; font-weight:800; color:var(--done); font-size:13px}
 .chip.on{border-color:var(--brand); box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 22%,transparent)}
-.bar{display:flex; height:5px; border-radius:3px; overflow:hidden; background:var(--void)}
-.bar i{display:block; height:100%; flex:none}
 
 /* 종류별 판 */
 .board{position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:calc((100% - 14px) / 2);
@@ -119,10 +94,6 @@ body{margin:0; padding:0; background:var(--ground); color:var(--ink);
 .col.flash{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 35%,transparent)}
 .col-h{padding:15px 16px 13px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
 .col-h h2{margin:0; font-size:18px; font-weight:800; letter-spacing:-.03em}
-.col-sum{display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12.5px; color:var(--ink-2)}
-.col-sum span{display:inline-flex; align-items:center; gap:5px; white-space:nowrap}
-.col-sum b{color:var(--ink); font-weight:700}
-.col-note{font-size:12px; color:var(--ink-3); line-height:1.45; word-break:keep-all}
 .col-empty{padding:22px 16px; color:var(--ink-3); font-size:13.5px}
 
 /* 회차 */
@@ -211,8 +182,6 @@ body{margin:0; padding:0; background:var(--ground); color:var(--ink);
   .wrap{padding:16px 16px 56px}
   #app{gap:12px}
   .who h1{font-size:20px}
-  .score .n{font-size:44px}
-  .spec{justify-content:flex-start}
   .tabs{margin:0 -16px; padding:8px 16px}
   .chip{min-width:104px; padding:8px 10px 9px}
   .board{grid-auto-columns:calc(100% - 30px); gap:10px; margin:0 -16px; padding:2px 16px 10px; scroll-padding-inline:16px}
@@ -221,6 +190,8 @@ body{margin:0; padding:0; background:var(--ground); color:var(--ink);
   .go{padding:7px 13px; font-size:13px}
 }
 @media (prefers-reduced-motion: reduce){ .tabs,.col{transition:none} }
+.plus{display:inline-flex; padding:1px 8px; border-radius:999px; background:var(--done-bg); color:var(--done); font-size:11.5px; font-weight:700; white-space:nowrap}
+.chip{min-height:0}
 </style>
 </head>
 <body>
@@ -269,14 +240,6 @@ function cnt(list){
   c.sel = c.done + c.review + c.wait;
   return c;
 }
-const bar = s => s.sel
-  ? ['done', 'review', 'wait'].map(k => s[k] ? `<i class="m-${k}" style="width:${(s[k] / s.sel * 100).toFixed(2)}%"></i>` : '').join('')
-  : '';
-function meter(s){
-  const parts = [['done', s.done], ['review', s.review], ['wait', s.wait], ['cancelled', s.cancel]].filter(p => p[1] > 0);
-  if (!parts.length) return '<i style="flex:1 1 0"></i>';
-  return parts.map(p => `<i class="m-${p[0]}" style="flex:${p[1]} 1 0"></i>`).join('');
-}
 function roundState(r){
   const c = cnt(r.members);
   if (c.wait) return 'live';
@@ -292,8 +255,6 @@ function render(D){
   SHOW_TAIL = D.show_tail !== false;
   const G = D.groups || [];
   const hasPhoto = G.some(g => g.kind === 'photo');
-  const T = {target:0, sel:0, done:0, review:0, wait:0, cancel:0};
-  G.forEach(g => Object.keys(T).forEach(k => { T[k] += (g.sum && g.sum[k]) || 0; }));
   const stamp = `${Number(D.asof.slice(5, 7))}/${Number(D.asof.slice(8, 10))} ${D.asof.slice(11, 16)} 기준`;
 
   const soon = [];
@@ -323,20 +284,6 @@ function render(D){
     </ul></section>`;
 
   h += `
-    <section class="deal">
-      <div class="deal-top">
-        <div class="score"><span class="n" id="score-done">${T.done}</span><span class="of">/ <span id="score-sel">${T.sel}</span>명</span><span class="cap">포스팅 완료</span></div>
-        <div class="spec"><span>모집 목표 <b>${T.target}명</b></span><span>검수 중 <b>${T.review}명</b></span><span>글 대기 <b>${T.wait}명</b></span><span>취소 <b>${T.cancel}명</b></span></div>
-      </div>
-      <div class="meter" aria-hidden="true">${meter(T)}</div>
-      <div class="keys">
-        <span><u class="m-done"></u>포스팅 완료 <b>${T.done}</b></span>
-        <span><u class="m-review"></u>검수 중 <b>${T.review}</b></span>
-        <span><u class="m-wait"></u>글 대기 <b>${T.wait}</b></span>
-        <span><u class="m-cancelled" style="border:1px solid var(--line-2)"></u>취소 <b>${T.cancel}</b></span>
-      </div>
-      <div class="deal-note">포스팅 완료는 저희가 검수해서 통과한 글만 셉니다.${hasPhoto ? ' 사진촬영은 촬영이 끝나면 완료로 셉니다.' : ''}</div>
-    </section>
   </div>`;
 
   if (G.length > 1) h += `
@@ -345,8 +292,7 @@ function render(D){
       <span class="arrows" id="arrows"><button type="button" id="prev" aria-label="앞 체험단">&#8249;</button><button type="button" id="next" aria-label="다음 체험단">&#8250;</button></span></div>
     <div class="chips">${G.map((g, gi) => `
       <button class="chip" type="button" data-i="${gi}" aria-controls="col-${gi}">
-        <b>${esc(String(g.label).replace(/ 체험단$/, ''))}</b><span class="cn">완료 <em>${g.sum.done}</em> / ${g.sum.sel}명</span>
-        <span class="bar">${bar(g.sum)}</span></button>`).join('')}</div>
+        <b>${esc(String(g.label).replace(/ 체험단$/, ''))}</b></button>`).join('')}</div>
   </nav>`;
 
   h += `<div class="board n${G.length}" id="board">${G.map((g, gi) => col(g, gi)).join('')}</div>`;
@@ -370,22 +316,12 @@ function render(D){
 }
 
 function col(g, gi){
-  const s = g.sum;
   const open = g.rounds.filter(r => !r.closed);
   const shut = g.rounds.filter(r => r.closed);
-  const shown = open.reduce((n, r) => n + cnt(r.members).sel, 0) + shut.reduce((n, r) => n + ((r.n && r.n.sel) || 0), 0);
-  const note = shown > s.sel ? '<div class="col-note">위 숫자는 진행 중이거나 아직 열린 회차가 있는 계약(없으면 가장 최근 계약) 기준입니다. 다른 계약분은 아래 회차에서 확인해 주세요.</div>' : '';
   return `
   <section class="col" id="col-${gi}" data-i="${gi}" aria-label="${esc(g.label)}">
     <div class="col-h">
       <h2>${esc(g.label)}</h2>
-      <div class="col-sum">
-        <span><u class="m-done"></u>포스팅 완료 <b>${s.done}</b></span>
-        <span><u class="m-review"></u>검수 중 <b>${s.review}</b></span>
-        <span><u class="m-wait"></u>글 대기 <b>${s.wait}</b></span>
-        ${s.cancel ? `<span>취소 <b>${s.cancel}</b></span>` : ''}
-      </div>
-      ${note}
     </div>
     ${g.rounds.length ? open.map(r => round(g, r)).join('') : '<div class="col-empty">모집 준비 중입니다</div>'}
     ${shut.length ? closedBlock(shut) : ''}
@@ -418,7 +354,7 @@ function round(g, r){
   return `
     <details class="rd${state === 'live' ? ' on' : ''}" data-state="${state}"${state !== 'end' && state !== 'zero' ? ' open' : ''}>
       <summary>${r.tag ? `<span class="rtag">${esc(r.tag)}</span>` : ''}<b>${esc(r.title)}</b>${pill}${per}
-        <span class="dim">선정 ${c.sel} / 완료 ${c.done}${state === 'rv' ? ` / 검수 중 ${c.review}` : ''}</span></summary>
+        <span class="dim">${r.target != null ? `모집 ${r.target}명, ` : ''}선정 ${c.sel}명, 완료 ${c.done}명${c.review ? `, 검수 중 ${c.review}명` : ''}</span>${r.target != null && c.sel > r.target ? `<span class="plus">${c.sel - r.target}명 추가 선정</span>` : ''}</summary>
       <div class="rd-b">
         <dl class="guide">${rows.map(x => `<div><dt>${x[0]}</dt><dd>${x[1]}</dd></div>`).join('')}</dl>
         ${r.members.length ? `<ul class="ml">${r.members.map((m, i) => row(m, i, r, g)).join('')}</ul>` : `<div class="ml-empty">${empty}</div>`}
