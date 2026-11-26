@@ -280,6 +280,9 @@ a:focus-visible,.go:focus-visible{outline:2px solid var(--brand); outline-offset
   .spec{text-align:left}
   .spec dd{justify-content:flex-start}
   .meter i{height:15px}
+  /* 칸이 45개를 넘으면 폰에서 여러 줄로 접는다(예: 114칸이면 틈만 339px 라
+     폰 안쪽 폭 330px 를 넘어 색칠 칸 폭이 0 · 막대가 화면 밖으로 넘친다). 줄 수는 meterHtml 이 정한다. */
+  .meter.multi{display:grid; grid-template-columns:repeat(var(--cols),minmax(0,1fr)); row-gap:4px}
 
   /* 표를 카드로 접는다. 광고주 링크는 대부분 카톡으로 폰에서 열리므로 이쪽이 기본 화면이다. */
   table{min-width:0}
@@ -591,8 +594,13 @@ function openNos(round, s){
 /* 칸 하나 = 표의 한 줄. 번호와 1:1로 맞물려서, 색만 보고도 어느 자리가 비었는지 안다.
    취소가 나면 그 칸은 회색으로 남고 대체 인원의 칸이 뒤에 붙으므로, 칸 수가 계약
    건수보다 많아질 수 있다 — 그게 "15자리 계약인데 3명 취소돼 3명 더 섭외했다" 는 뜻이다. */
+/* 한 줄 최대 칸 수. 넘으면 줄을 나눠 줄마다 칸 수를 고르게 한다(114칸 → 3줄 × 38).
+   45칸 이하는 예전 그대로 한 줄 — 출력 HTML 도 같다. 접기는 폰(680px 이하)에서만 켜진다. */
+const METER_COLS = 45;
 function meterHtml(rows){
-  return '<div class="meter" role="img" aria-label="계약 자리별 진행 상태">'
+  const lines = Math.ceil(rows.length / METER_COLS);
+  const cls = lines > 1 ? 'meter multi" style="--cols:' + Math.ceil(rows.length / lines) : 'meter';
+  return '<div class="' + cls + '" role="img" aria-label="계약 자리별 진행 상태">'
     + rows.map(r => '<i class="m-' + r.status + '" title="'
         + esc('No.' + r.no + ' · ' + (LABEL[r.status] || r.status)) + '"></i>').join('')
     + '</div>';
